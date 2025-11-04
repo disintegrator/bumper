@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+# on:
+#   push:
+#     branches:
+#       - main
+#     paths: [ .bumper/versions.toml ]
+
+jobs:
+  release-cli:
+    runs-on: ubuntu-latest
+    permissions:
+      # So we can push tags
+      contents: write
+      # For keyless signing with cosign
+      id-token: write
+    env:
+      BUMPER_GROUP: bumper
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
+
+      - name: Set up Mise
+        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
+        with:
+          install: true
+          cache: true
+          env: false
+
+      - name: Set up env
+        run: |
+          notes_file="$(mktemp)"
+          echo "BUMPER_GROUP_VERSION=$(mise bumper latest)" >> $GITHUB_ENV
+          echo "GORELEASER_CURRENT_TAG=v$(mise bumper latest)" >> $GITHUB_ENV
+          echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV
+          mise bumper cat > "$notes_file"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: goreleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          version: latest
+          args: --release-notes=${{ env.RELEASE_NOTES_FILE }} --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
