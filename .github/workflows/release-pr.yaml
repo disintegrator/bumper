@@ -1,0 +1,45 @@
+name: Create Release PRs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    env:
+      BUMPER_GROUP: bumper
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
+
+      - name: Set up Mise
+        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
+        with:
+          install: true
+          cache: true
+          env: false
+      
+      - name: Bumper commit
+        run: |
+          notes_file="$(mktemp)"
+          mise bumper commit
+          echo "BUMPER_GROUP_VERSION=$(mise bumper latest)" >> $GITHUB_ENV
+          echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV
+          mise bumper cat > "$notes_file"
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          sign-commits: true
+          commit-message: 'chore: bumper commit'
+          branch: gha/bumper-release
+          delete-branch: true
+          title: "chore: release bumper v${{ env.BUMPER_GROUP_VERSION }}"
+          body-path: ${{ env.RELEASE_NOTES_FILE }}
+          reviewers: disintegrator
