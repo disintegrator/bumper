@@ -2,6 +2,10 @@ name: Create Release PRs
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths: [ .bumper/bump-*.md ]
 
 jobs:
   create-release-pr:

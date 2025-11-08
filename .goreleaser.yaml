@@ -19,6 +19,7 @@ builds:
       - darwin
     flags:
       - -trimpath
+      - -mod=readonly
     ldflags:
       - "-s -w -X github.com/disintegrator/bumper/buildinfo.Commit={{.FullCommit}} -X github.com/disintegrator/bumper/buildinfo.Version={{.Version}} -X github.com/disintegrator/bumper/buildinfo.Date={{.Date}}"
 
