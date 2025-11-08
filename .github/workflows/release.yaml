@@ -2,12 +2,10 @@ name: Release
 
 on:
   workflow_dispatch:
-
-# on:
-#   push:
-#     branches:
-#       - main
-#     paths: [ .bumper/versions.toml ]
+  push:
+    branches:
+      - main
+    paths: [ .bumper/versions.toml ]
 
 jobs:
   release-cli:
