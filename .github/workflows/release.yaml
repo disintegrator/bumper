@@ -56,6 +56,13 @@ jobs:
           echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV
           mise bumper cat --version "$bumper_version" > "$notes_file"
 
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${GORELEASER_CURRENT_TAG}"
+          git push origin "${GORELEASER_CURRENT_TAG}"
+
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
 
