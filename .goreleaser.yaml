@@ -33,6 +33,17 @@ archives:
       - goos: windows
         formats: [zip]
 
+nfpms:
+  - homepage: https://github.com/disintegrator/bumper
+    description: Manage versioning and changelogs for your projects.
+    license: MPL-2.0
+    maintainer: Georges Haidar <ghaida0@gmail.com>
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
+
 checksum:
   name_template: "checksums.txt"
 
