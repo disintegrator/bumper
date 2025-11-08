@@ -48,10 +48,11 @@ jobs:
       - name: Set up env
         run: |
           notes_file="$(mktemp)"
-          echo "BUMPER_GROUP_VERSION=$(mise bumper latest)" >> $GITHUB_ENV
-          echo "GORELEASER_CURRENT_TAG=v$(mise bumper latest)" >> $GITHUB_ENV
+          bumper_version="$(mise bumper latest)"
+          echo "BUMPER_GROUP_VERSION=$bumper_version" >> $GITHUB_ENV
+          echo "GORELEASER_CURRENT_TAG=v$bumper_version" >> $GITHUB_ENV
           echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV
-          mise bumper cat > "$notes_file"
+          mise bumper cat --version "$bumper_version" > "$notes_file"
 
       - name: Install cosign
         uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
