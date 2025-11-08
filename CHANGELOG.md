@@ -1,5 +1,11 @@
 # Changelog
 
+## Bumper 0.0.3
+
+### Patch Changes
+
+- e90fdd8: Only show release group selector if there are more than one release groups
+
 ## Bumper 0.0.2
 
 ### Patch Changes
