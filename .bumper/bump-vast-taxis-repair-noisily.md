@@ -1,5 +1,5 @@
 ---
-bumper: minor
+bumper: patch
 ---
 
 Initial release of `bumper`
