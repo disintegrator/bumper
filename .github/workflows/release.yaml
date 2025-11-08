@@ -31,7 +31,7 @@ jobs:
           env: false
       
       - name: Set up Bun
-        run: bun install
+        run: bun install --filter=.
 
       - name: Prepare cache keys
         run: mise run gha:pre-cache
