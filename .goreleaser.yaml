@@ -9,7 +9,7 @@ before:
     - go generate ./...
 
 builds:
-  - id: bumper-cli
+  - id: bumper
     main: ./cmd/bumper
     env:
       - CGO_ENABLED=0
@@ -28,7 +28,7 @@ builds:
       - "-s -w -X github.com/disintegrator/bumper/buildinfo.Commit={{.FullCommit}} -X github.com/disintegrator/bumper/buildinfo.Version={{.Version}} -X github.com/disintegrator/bumper/buildinfo.Date={{.Date}}"
 
 archives:
-  - id: bumper-cli
+  - id: bumper
     format_overrides:
       - goos: windows
         formats: [zip]
