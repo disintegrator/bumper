@@ -1,8 +1,13 @@
 {
+  "name": "@bumper-tool/workspace",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "site"
+  ],
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "prettier": "^3.6.2"
   },
   "peerDependencies": {
     "typescript": "^5"

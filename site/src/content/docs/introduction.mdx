@@ -1,0 +1,23 @@
+---
+title: Introduction
+description: Why does bumper exist and how it helps with versioning and changelogs.
+---
+
+Providing a changelog with your apps and libraries is essential of the "release process" and helps keep your users informed about the latest features and fixes you're shipping with each release.
+
+Planning releases and maintaining changelogs in lockstep can be a tedious process and in the most basic form involves manually updating version numbers and manually summarizing recent commits into a changelog file.
+
+This is where Bumper comes in...
+
+## How it works
+
+Bumper integrates seamlessly into your existing development workflow and CI/CD process. It works like this:
+
+1. You initialize your project with `bumper init`.
+2. You create a release group with `bumper create <name>`.
+3. Any time you make an interesting change that needs to be released, you create a bump with `bumper bump` and include with the same commit or as part of a pull request.
+4. When you're ready to release, you run `bumper commit` which update the release group version and the changelog.
+5. Depending on what tooling you use to release your project (such as `npm publish`, `goreleaser release`, etc.), you can incorporate the release group version with `bumper latest --group <name>` and if you need the release notes for a version you use `bumper cat --group <name> <version>`.
+6. Rinse and repeat!
+
+It doesn't end there. Bumper can help you manage releases and changelogs for one package or a monorepo with many packages.

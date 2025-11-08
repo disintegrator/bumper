@@ -1,0 +1,60 @@
+---
+title: Release group
+description: Release groups allow you to manage one or more versioned components within a single repository
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+A release group is the logical component that you will be versioning and releasing. In simple repositories, you will have a single release group that represents the project you are working on. In more complex monorepos, you may have several release groups that track one or more packages.
+
+## Worked example
+
+Let's consider a monorepo that contains a server, a dashboard and a couple of npm packages:
+
+```js title="bumper.config.js"
+.bumper/
+  config.toml
+  versions.toml
+dashboard/
+  ...
+packages/
+  cli/
+    package.json  # "name": "@myorg/cli"
+    ...
+  sdk/
+    package.json  # "name": "@myorg/sdk"
+    ...
+server/
+  ...
+```
+
+And the following requirements:
+
+- dashboard is versioned and released independently
+- server is versioned and released independently
+- packages/cli and packages/sdk are versioned and released together as a single unit
+
+You could solve this by creating three release groups:
+
+```
+bumper create dashboard server tools
+```
+
+Any time you make a change to either `packages/cli` or `packages/sdk`, you would create a bump that targets the `tools` release group:
+
+```
+bumper bump --group tools
+```
+
+<Aside>
+
+You can also omit the `--group` flag and pick it in the wizard when you run `bumper bump`.
+
+</Aside>
+
+When it comes to publish these packages, you would run:
+
+```sh
+npm version -w @myorg/cli -w @myorg/sdk $(bumper latest --group tools)
+npm publish -w @myorg/cli -w @myorg/sdk
+```

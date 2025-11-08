@@ -1,0 +1,114 @@
+---
+title: Release automation
+description: Publish a new release of your projects whenever bumper updates versions
+---
+
+Automated publishing should be possible if your CI/CD system can trigger pipelines based on specific file changes.
+
+As a worked example, let's say we have a GitHub repository that hosts an NPM package and uses GitHub Actions for CI/CD.
+
+We'll start it off by creating a release group:
+
+```
+bumper init
+bumper create my-package
+```
+
+Our bumper config will look something like this:
+
+```toml title=".bumper/config.toml"
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+base_branch = "origin/main"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:default"]
+next_cmd = ["bumper", "builtins", "next:default"]
+```
+
+The next thing we'll do is change the versioning strategy to better suite npm projects:
+
+```diff lang="toml" title=".bumper/config.toml"
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+base_branch = "origin/main"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+-current_cmd = ["bumper", "builtins", "current:default"]
+-next_cmd = ["bumper", "builtins", "next:default"]
++current_cmd = ["bumper", "builtins", "current:npm", "--package", "package.json"]
++next_cmd = ["bumper", "builtins", "next:npm", "--package", "package.json"]
+```
+
+Now, whenever you run `bumper commit` it will update a package.json with the new version of `my-package`. We'll drive CI/CD off of that.
+
+<Aside>
+
+We'll assume you're using [NPM trusted publishing][npm-tp] which doesn't require storing an NPM token as a GitHub actions secret. Highly recommended if you're publishing from GitHub Actions.
+
+[npm-tp]: https://docs.npmjs.com/trusted-publishers
+
+</Aside>
+
+Here's what a sample GitHub Actions workflow could look like to achieve this:
+
+```yaml
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths: [package.json]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  npm-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # To push tags
+      id-token: write # To publish using NPM trusted publishing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Set up Mise
+        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
+        with:
+          mise_toml: |
+            [tools]
+            node = "24"
+            bumper = "latest"
+
+      - name: Get latest version
+        id: bumper
+        run: |
+          latest_version=$(mise bumper latest --group my-package)
+          echo "latest_version=$latest_version" >> $GITHUB_OUTPUT
+
+          if npm view "my-package@$latest_version" version &>/dev/null; then
+            echo "Version $latest_version already exists on NPM. Skipping publish."
+            echo "should_publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_publish=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish
+        if: steps.bumper.outputs.should_publish == 'true'
+        run: |
+          npm publish --provenance
+
+          tag="v${{ steps.bumper.outputs.latest_version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$tag"
+          git push origin "$tag"
+```

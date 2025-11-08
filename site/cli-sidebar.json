@@ -1,0 +1,62 @@
+[
+  {
+    "label": "init",
+    "slug": "cli/init"
+  },
+  {
+    "label": "create",
+    "slug": "cli/create"
+  },
+  {
+    "label": "bump",
+    "slug": "cli/bump"
+  },
+  {
+    "label": "commit",
+    "slug": "cli/commit"
+  },
+  {
+    "label": "latest",
+    "slug": "cli/latest"
+  },
+  {
+    "label": "cat",
+    "slug": "cli/cat"
+  },
+  {
+    "label": "builtins",
+    "slug": "cli/builtins"
+  },
+  {
+    "label": "builtins current:default",
+    "slug": "cli/builtins-current-default"
+  },
+  {
+    "label": "builtins current:file",
+    "slug": "cli/builtins-current-file"
+  },
+  {
+    "label": "builtins current:npm",
+    "slug": "cli/builtins-current-npm"
+  },
+  {
+    "label": "builtins next:default",
+    "slug": "cli/builtins-next-default"
+  },
+  {
+    "label": "builtins next:file",
+    "slug": "cli/builtins-next-file"
+  },
+  {
+    "label": "builtins next:npm",
+    "slug": "cli/builtins-next-npm"
+  },
+  {
+    "label": "builtins amendlog:default",
+    "slug": "cli/builtins-amendlog-default"
+  },
+  {
+    "label": "builtins cat:default",
+    "slug": "cli/builtins-cat-default"
+  }
+]

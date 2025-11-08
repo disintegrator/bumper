@@ -1,0 +1,91 @@
+---
+title: Commit
+description: Commits are how you squash pending bumps and kick off the release process
+---
+
+When you're ready to cut a release of a project, you'll run `bumper commit` to process all of the pending bumps that have been added since the last release.
+
+## Worked example
+
+Let's imagine on your main branch you have a monorepo with two release groups:
+
+- `dashboard` which is currently at version 3.14.1
+- `api` which is currently at version 1.7.4
+
+Over time, three pull requests have been merged that added the following bump files:
+
+```
+.bumper/
+  bump-gentle-camels-cross-lazily.md
+  bump-curious-dolphins-dance-daily.md
+  bump-happy-elephants-eat-enthusiastically.md
+  versions.toml
+api/
+dashboard/
+CHANGELOG.md
+```
+
+```md title=".bumper/bump-gentle-camels-cross-lazily.md"
+---
+dashboard: minor
+---
+
+Added an account settings page where users can update their profile information.
+```
+
+```md title=".bumper/bump-curious-dolphins-dance-daily.md"
+---
+api: patch
+dashboard: patch
+---
+
+Fixed a bug where the API would return a 500 error when no authentication token was provided.
+```
+
+```md title=".bumper/bump-happy-elephants-eat-enthusiastically.md"
+---
+dashboard: patch
+---
+
+Updated the dashboard to include a graph of share price over time.
+```
+
+When you run `bumper commit`, it will determine the following:
+
+- `dashboard` has three bumps: one "minor" and two "patch" -> The highest level bump is "minor" -> The new version will be 3.15.0.
+- `api` has one bump: a "patch" -> The new version will be 1.7.5.
+
+If you're using the out of the box defaults, it will:
+
+- Update `.bumper/versions.toml` to reflect these new versions.
+
+  ```toml title=".bumper/versions.toml"
+  [versions]
+  dashboard = "3.15.0"
+  api = "1.7.5"
+  ```
+
+- Insert the following to the top of `CHANGELOG.md`:
+
+  ```md title="CHANGELOG.md"
+  # Changelog
+
+  ## api 1.7.5
+
+  ### Patch Changes
+
+  - Fixed a bug where the API would return a 500 error when no authentication token was provided.
+
+  ## dashboard 3.15.0
+
+  ### Minor Changes
+
+  - Added an account settings page where users can update their profile information.
+
+  ### Patch Changes
+
+  - Fixed a bug where the API would return a 500 error when no authentication token was provided.
+  - Updated the dashboard to include a graph of share price over time.
+
+  ... rest of changelog ...
+  ```

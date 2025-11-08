@@ -1,0 +1,22 @@
+---
+title: Bump
+description: Bumps are how you signal an "intent to release"
+---
+
+Every time you open a pull request, you will determine if the changes it contains warrant a new version release. You do this by adding one or more _bump_ files to the PR. You can generate these by running `bumper bump` and they will be stored in `.bumper/bump-*.md` files by default. Here's what a bump file looks like:
+
+```md title=".bumper/bump-gentle-camels-cross-lazily.md"
+---
+dashboard: minor
+---
+
+Added an account settings page where users can update their profile information.
+```
+
+This file represents the following:
+
+- The change being made represents a "minor" version bump.
+- It affects the `dashboard` release group.
+- It has a description that will be added to the changelog when committed.
+
+Over time, when you merge a PR or commit to the main branch, a bunch of these will accumulate. _Nothing is released yet though._ You'll need to run `bumper commit` to process these bumps and kick off a release process.
