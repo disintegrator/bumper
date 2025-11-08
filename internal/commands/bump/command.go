@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -100,13 +102,28 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				levelFlag = "patch"
 			}
 
+			indexed := cfg.IndexReleaseGroups()
+			if len(groupsFlag) > 0 {
+				for _, g := range groupsFlag {
+					if _, ok := indexed[g]; !ok {
+						logger.ErrorContext(ctx, "release group not found in config", slog.String("group", g))
+						return cmd.Failed(fmt.Errorf("%s: release group not found in config", g))
+					}
+				}
+			}
+
+			deduped := make(map[string]struct{})
+			for _, g := range groupsFlag {
+				deduped[g] = struct{}{}
+			}
+			groupsDeduped := slices.Sorted(maps.Keys(deduped))
+
 			bumpOpts := &bumpOptions{
-				groups:  groupsFlag,
+				groups:  groupsDeduped,
 				level:   levelFlag,
 				message: messageFlag,
 			}
 
-			bumpOpts.groups = groupsFlag
 			groupOpts := make([]huh.Option[string], 0, len(cfg.Groups))
 			for _, g := range cfg.Groups {
 				groupOpts = append(groupOpts, huh.NewOption(g.Name, g.Name))
@@ -116,13 +133,25 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(errors.New("no release groups defined"))
 			}
 
+			if len(cfg.Groups) == 1 && len(bumpOpts.groups) == 0 {
+				bumpOpts.groups = []string{cfg.Groups[0].Name}
+			}
+
 			err = huh.NewForm(
 				huh.NewGroup(
 					huh.NewMultiSelect[string]().
 						Options(groupOpts...).
 						Filterable(true).
+						Validate(func(s []string) error {
+							if len(s) == 0 {
+								return errors.New("at least one release group must be selected")
+							}
+							return nil
+						}).
 						Value(&bumpOpts.groups),
-				).WithHide(len(groupsFlag) > 0),
+				).WithHideFunc(func() bool {
+					return len(groupsDeduped) > 0 || len(groupOpts) < 2
+				}),
 
 				huh.NewGroup(
 					huh.NewSelect[string]().
