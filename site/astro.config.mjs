@@ -31,6 +31,14 @@ export default defineConfig({
 					autogenerate: { directory: 'guides' },
 				},
 				{
+					label: 'CI/CD Integrations',
+					autogenerate: { directory: 'ci-cd' },
+				},
+				{
+					label: 'Configuration',
+					autogenerate: { directory: 'configuration' },
+				},
+				{
 					label: 'Reference',
 					autogenerate: { directory: 'reference' },
 				},

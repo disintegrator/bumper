@@ -1,0 +1,34 @@
+---
+title: Overview
+description: Learn how to configure Bumper for your project
+---
+
+A (subjectively) nice thing about Bumper is that instead of providing endless configuration options and strong opinions baked into them, it chooses to go with a more unix philosophy of delegating various tasks to smaller programs or scripts.
+
+At its core, bumper needs to do 4 things:
+
+- Read the current version of a release group
+- Update the version of a release group
+- Edit a changelog
+- Read the release notes of a release group at given version
+
+You can see these reflected in the configuration file. Here are the default options that are written out when you run `bumper create`:
+
+```toml title:".bumper/config.toml"
+[[groups]]
+name = "bumper"
+display_name = "Bumper"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:default"]
+next_cmd = ["bumper", "builtins", "next:default"]
+```
+
+A quick explanation of each field:
+
+- `name`: the release group name and what is referenced when running bumper commands.
+- `display_name`: a human friendly name for the release group that is used in changelogs.
+- `changelog_cmd`: the command that bumper will run to update the changelog when a new version is released.
+- `cat_cmd`: the command that bumper will run to read the release notes for a given version.
+- `current_cmd`: the command that bumper will run to read the current version of the release group.
+- `next_cmd`: the command that bumper will run to update the version of the release group.

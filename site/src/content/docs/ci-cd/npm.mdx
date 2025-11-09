@@ -1,35 +1,13 @@
 ---
-title: Release automation
-description: Publish a new release of your projects whenever bumper updates versions
+title: GitHub Actions NPM CI/CD Setup
+description: Configure GitHub Actions to publish NPM packages using Bumper.
+sidebar:
+  label: GitHub Actions + NPM
 ---
 
-import { Aside } from "@astrojs/starlight/components";
+Bumper comes with built-in support for update npm packages in a way that plugs in conveniently with npm publishing.
 
-Automated publishing should be possible if your CI/CD system can trigger pipelines based on specific file changes.
-
-As a worked example, let's say we have a GitHub repository that hosts an NPM package and uses GitHub Actions for CI/CD.
-
-We'll start it off by creating a release group:
-
-```
-bumper init
-bumper create my-package
-```
-
-Our bumper config will look something like this:
-
-```toml title=".bumper/config.toml"
-[[groups]]
-name = "my-package"
-display_name = "my-package"
-base_branch = "origin/main"
-changelog_cmd = ["bumper", "builtins", "amendlog:default"]
-cat_cmd = ["bumper", "builtins", "cat:default"]
-current_cmd = ["bumper", "builtins", "current:default"]
-next_cmd = ["bumper", "builtins", "next:default"]
-```
-
-The next thing we'll do is change the versioning strategy to better suite npm projects:
+For a given release group, update your config:
 
 ```diff lang="toml" title=".bumper/config.toml"
 [[groups]]
@@ -44,26 +22,18 @@ cat_cmd = ["bumper", "builtins", "cat:default"]
 +next_cmd = ["bumper", "builtins", "next:npm", "--package", "package.json"]
 ```
 
-Now, whenever you run `bumper commit` it will update a package.json with the new version of `my-package`. We'll drive CI/CD off of that.
+Now in your GitHub Actions workflow, you can set up a release job that triggers on changes to `package.json` files:
 
-<Aside>
-
-We'll assume you're using [NPM trusted publishing][npm-tp] which doesn't require storing an NPM token as a GitHub actions secret. Highly recommended if you're publishing from GitHub Actions.
-
-[npm-tp]: https://docs.npmjs.com/trusted-publishers
-
-</Aside>
-
-Here's what a sample GitHub Actions workflow could look like to achieve this:
-
-```yaml
+```yaml title=".github/workflows/release.yml"
 name: Release
-
 on:
+  # Allows manual triggering of the workflow
   workflow_dispatch:
+
+  # Only run this workflow automatically on pushes that modify package.json files
   push:
     branches:
-      - main
+      - main  # Adjust this based on your default branch
     paths: [package.json]
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -74,21 +44,18 @@ jobs:
     permissions:
       contents: write # To push tags
       id-token: write # To publish using NPM trusted publishing
-
+    steps:
     steps:
       - name: Checkout repository
         uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
 
+      - name: Set up Node.js
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 'lts/*'
+
       - name: Install dependencies
         run: npm install
-
-      - name: Set up Mise
-        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
-        with:
-          mise_toml: |
-            [tools]
-            node = "24"
-            bumper = "latest"
 
       - name: Get latest version
         id: bumper

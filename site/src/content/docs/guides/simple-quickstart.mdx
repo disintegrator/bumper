@@ -1,0 +1,26 @@
+---
+title: Simple repository setup
+description: Quickstart guide for setting up Bumper in single package repository.
+sidebar:
+  order: 1
+---
+
+Bumper integrates seamlessly into your existing development workflow and CI/CD process.
+
+Here's how to set it up in a repository with a single package:
+
+1. Initialize your project with `bumper init`.
+2. Create a release group with `bumper create <name>`.
+3. [Integrate it into your CI/CD process.](/ci-cd)
+
+That's it for the setup phase! Now we move to the bump phase. Any time you make an interesting change that needs to be released:
+
+4. Create a bump with `bumper bump` and include it with a pull request (you can also commit it directly if you practice trunk-based development).
+
+Time goes on and you accumulate bumps...
+
+When you're ready to cut a release:
+
+5. Run `bumper commit` which updates the release group version and the changelog.
+6. Merge any changes into your default git branch.
+7. Rinse and repeat!
