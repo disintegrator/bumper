@@ -27,6 +27,20 @@ jobs:
           install: true
           cache: true
           env: false
+
+      - name: Prepare cache keys
+        run: mise run gha:pre-cache
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          key: ${{ env.GH_CACHE_GO_KEY }}
+          restore-keys: |
+            ${{ env.GH_CACHE_GO_KEY }}
+            ${{ env.GH_CACHE_GO_KEY_PARTIAL }}
+          path: |
+            ${{ env.GOCACHE }}
+            ${{ env.GOMODCACHE }}
       
       - name: Generate CLI docs
         run: mise run site:cli-reference
