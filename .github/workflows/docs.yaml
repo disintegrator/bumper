@@ -20,10 +20,19 @@ jobs:
     steps:
       - name: Checkout your repository using git
         uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # v5.0.0
+
+      - name: Set up Mise
+        uses: jdx/mise-action@be3be2260bc02bc3fbf94c5e2fed8b7964baf074 # v3.4.0
+        with:
+          install: true
+          cache: true
+          env: false
+
       - name: Install, build, and upload your site
         uses: withastro/action@2226b5671ff302b175d9843add614af27e60bbfc # v5.0.0
         with:
           path: site
+          package-manager: bun
 
   deploy:
     needs: build
