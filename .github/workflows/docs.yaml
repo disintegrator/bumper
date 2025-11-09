@@ -27,6 +27,9 @@ jobs:
           install: true
           cache: true
           env: false
+      
+      - name: Generate CLI docs
+        run: mise run site:cli-reference
 
       - name: Install, build, and upload your site
         uses: withastro/action@2226b5671ff302b175d9843add614af27e60bbfc # v5.0.0
