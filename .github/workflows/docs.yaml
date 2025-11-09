@@ -11,8 +11,7 @@ permissions:
   id-token: write
 
 env:
-  ASTRO_SITE: https://disintegrator.github.io
-  ASTRO_BASE: /bumper
+  ASTRO_SITE: https://bumper.disintegrator.dev
 
 jobs:
   build:
