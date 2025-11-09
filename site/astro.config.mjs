@@ -13,7 +13,14 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'Bumper',
+			tagline: 'Changelog-driven development for your projects',
 			social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/disintegrator/bumper' }],
+			customCss: [
+				'./src/styles/theme.css',
+			],
+			components: {
+				Hero: './src/components/hero.astro',
+			},
 			sidebar: [
 				{
 					label: 'Introduction',
