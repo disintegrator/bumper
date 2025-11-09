@@ -2,7 +2,7 @@
 
 //MISE dir="{{ config_root }}"
 
-import { rm } from "node:fs/promises";
+import { rm, mkdir } from "node:fs/promises";
 
 async function generateCLIReferenceDocs() {
   const commands: Array<string[]> = [
@@ -23,7 +23,8 @@ async function generateCLIReferenceDocs() {
     ["builtins", "cat:default"],
   ];
 
-  await rm("./site/src/content/docs/cli/*", { recursive: true, force: true });
+  await rm("./site/src/content/docs/cli", { recursive: true, force: true });
+  await mkdir("./site/src/content/docs/cli", { recursive: true });
 
   for (const command of commands) {
     const helpText = await Bun.$`mise run bumper ${command} --help`.text();
