@@ -232,50 +232,11 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			displayName := group.Name
-			if group.DisplayName != "" {
-				displayName = group.DisplayName
-			}
-
-			title := fmt.Sprintf("## %s %s", displayName, versionStr)
-
-			file, err := os.Open(logfile)
+			result, err := changelogForGroup(group, logfile, versionStr)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to open changelog file", slog.String("file", logfile), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to get changelog for group", slog.String("group", groupName), slog.String("version", versionStr), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
-			defer file.Close()
-
-			scanner := bufio.NewScanner(file)
-			state := "search"
-			var output strings.Builder
-
-		scanloop:
-			for scanner.Scan() {
-				line := scanner.Text()
-
-				switch state {
-				case "search":
-					if line == title {
-						state = "collect"
-					}
-				case "collect":
-					if strings.HasPrefix(line, "## ") {
-						break scanloop
-					} else {
-						output.WriteString(line + "\n")
-					}
-				default:
-					panic("unreachable state")
-				}
-			}
-
-			if err := scanner.Err(); err != nil {
-				logger.ErrorContext(ctx, "failed to read changelog file", slog.String("file", logfile), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			result := strings.TrimSpace(output.String())
 			if result == "" {
 				logger.ErrorContext(ctx, "no release notes found for version", slog.String("version", versionStr), slog.String("group", groupName))
 				return cmd.Failed(fmt.Errorf("no release notes found for version %s in group %s", versionStr, groupName))
@@ -286,4 +247,48 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 			return nil
 		},
 	}
+}
+
+func changelogForGroup(group workspace.ReleaseGroup, logfile string, versionStr string) (string, error) {
+	displayName := group.Name
+	if group.DisplayName != "" {
+		displayName = group.DisplayName
+	}
+
+	file, err := os.Open(logfile)
+	if err != nil {
+		return "", fmt.Errorf("open changelog: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	state := "search"
+	var output strings.Builder
+
+scanloop:
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		switch state {
+		case "search":
+			if strings.HasPrefix(line, fmt.Sprintf("## %s %s", displayName, versionStr)) {
+				state = "collect"
+				output.WriteString(line + "\n")
+			}
+		case "collect":
+			if strings.HasPrefix(line, "## ") {
+				break scanloop
+			} else {
+				output.WriteString(line + "\n")
+			}
+		default:
+			panic("unreachable state")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("read changelog: %w", err)
+	}
+
+	return strings.TrimSpace(output.String()), nil
 }

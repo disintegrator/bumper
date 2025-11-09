@@ -169,6 +169,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(itererr)
 			}
 
+			committedGroups := make([]string, 0, len(highestBump))
 			for groupName, level := range highestBump {
 				g, ok := cfgGroups[groupName]
 				if !ok {
@@ -229,7 +230,12 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 					logger.ErrorContext(ctx, "failed to commit changelog", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
 					return cmd.Failed(err)
 				}
+
+				committedGroups = append(committedGroups, groupName)
 			}
+
+			slices.Sort(committedGroups)
+			fmt.Println(strings.Join(committedGroups, "\n"))
 
 			return nil
 		},
