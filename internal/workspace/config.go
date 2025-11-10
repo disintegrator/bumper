@@ -41,7 +41,6 @@ func (c *Config) IndexReleaseGroups() map[string]ReleaseGroup {
 type ReleaseGroup struct {
 	Name         string   `json:"name" toml:"name" yaml:"name"`
 	DisplayName  string   `json:"display_name,omitempty" toml:"display_name,omitempty" yaml:"display_name,omitempty"`
-	BaseBranch   string   `json:"base_branch,omitempty,omitzero" toml:"base_branch,omitempty,omitzero" yaml:"base_branch,omitempty,omitzero"`
 	ChangelogCMD []string `json:"changelog_cmd,omitempty,omitzero" toml:"changelog_cmd,omitempty,omitzero" yaml:"changelog_cmd,omitempty,omitzero"`
 	CatCMD       []string `json:"cat_cmd,omitempty,omitzero" toml:"cat_cmd,omitempty,omitzero" yaml:"cat_cmd,omitempty,omitzero"`
 	CurrentCMD   []string `json:"current_cmd,omitempty,omitzero" toml:"current_cmd,omitempty,omitzero" yaml:"current_cmd,omitempty,omitzero"`

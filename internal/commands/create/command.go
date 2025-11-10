@@ -25,11 +25,6 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 		},
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
-			&cli.StringFlag{
-				Name:  "base-branch",
-				Usage: "Git base branch for each group",
-				Value: "origin/main",
-			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			rawdir := shared.DirFlag(c)
@@ -59,7 +54,6 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				groups = append(groups, workspace.ReleaseGroup{
 					Name:         name,
 					DisplayName:  name,
-					BaseBranch:   c.String("base-branch"),
 					ChangelogCMD: []string{"bumper", "builtins", "amendlog:default"},
 					CatCMD:       []string{"bumper", "builtins", "cat:default"},
 					CurrentCMD:   []string{"bumper", "builtins", "current:default"},
