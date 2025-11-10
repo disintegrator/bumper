@@ -4,5 +4,23 @@ display_name = "Bumper"
 base_branch = "origin/main"
 changelog_cmd = ["mise", "run", "-q", "bumper", "builtins", "amendlog:default"]
 cat_cmd = ["mise", "run", "-q", "bumper", "builtins", "cat:default"]
-current_cmd = ["mise", "run", "-q", "bumper", "builtins", "current:default"]
-next_cmd = ["mise", "run", "-q", "bumper", "builtins", "next:default"]
+current_cmd = [
+  "mise",
+  "run",
+  "-q",
+  "bumper",
+  "builtins",
+  "current:file",
+  "--path",
+  "VERSION",
+]
+next_cmd = [
+  "mise",
+  "run",
+  "-q",
+  "bumper",
+  "builtins",
+  "next:file",
+  "--path",
+  "VERSION",
+]

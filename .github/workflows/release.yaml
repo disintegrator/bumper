@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-    paths: [ .bumper/versions.toml ]
+    paths: [ VERSION ]
 
 jobs:
   release-cli:
