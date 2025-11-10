@@ -145,7 +145,7 @@ main() {
     info "Installation successful!"
     info "Verifying installation..."
     echo ""
-    bumper --version || error "Failed to run bumper --version"
+    "$INSTALL_DIR/bumper" --version || error "Failed to run bumper --version"
     echo ""
     info "bumper has been installed successfully!"
 }
