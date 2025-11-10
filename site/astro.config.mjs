@@ -30,6 +30,10 @@ export default defineConfig({
                     slug: 'introduction',
                 },
                 {
+                    label: 'Installation',
+                    slug: 'installation',
+                },
+                {
                     label: 'Guides',
                     autogenerate: { directory: 'guides' },
                 },

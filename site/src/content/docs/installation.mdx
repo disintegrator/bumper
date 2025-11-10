@@ -1,0 +1,66 @@
+---
+title: Installation
+description: How to install Bumper on your system
+---
+
+## With `curl`
+
+You can install Bumper by running the following command in your terminal:
+
+```sh
+curl -fsSL https://bumper.disintegrator.dev/install.sh | sh
+```
+
+## With `go`
+
+```sh
+go install github.com/disintegrator/bumper/cmd/bumper@latest
+```
+
+## With `mise`
+
+```sh
+mise use github:disintegrator/bumper
+```
+
+## APK, Debian and RPM packages
+
+You can find pre-built packages for various Linux distributions on the [Releases](https://github.com/disintegrator/bumper/releases) page. These can all be verified using cosign by following the steps in the next section.
+
+## Manually and verify with cosign
+
+All release artifacts are signed using [cosign](https://github.com/sigstore/cosign) with keyless signing. You can verify the authenticity of the downloaded binaries by checking the signature against the checksums file.
+
+First, download the checksums file and its signature:
+
+```sh
+VERSION=0.0.3
+BASE_URL="https://github.com/disintegrator/bumper/releases/download/v$VERSION"
+curl -fsSLO "$BASE_URL/checksums.txt"
+curl -fsSLO "$BASE_URL/checksums.txt.pem"
+curl -fsSLO "$BASE_URL/checksums.txt.keyless.sig"
+curl -fsSLO "$BASE_URL/bumper_$VERSION_darwin_arm64.tar.gz"
+```
+
+Verify the checksums file with cosign:
+
+```sh
+cosign verify-blob checksums.txt \
+  --certificate checksums.txt.pem \
+  --signature checksums.txt.keyless.sig \
+  --certificate-identity 'https://github.com/disintegrator/bumper/.github/workflows/release.yaml@refs/heads/main' \
+  --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
+```
+
+Verify your downloaded artifact or installed binary matches the checksum:
+
+```sh
+sha256sum --check checksums.txt --ignore-missing
+```
+
+Finally, extract the binary and move it to your PATH:
+
+```sh
+tar -xzf bumper_0.0.3_darwin_arm64.tar.gz
+mv bumper /usr/local/bin/bumper
+```
