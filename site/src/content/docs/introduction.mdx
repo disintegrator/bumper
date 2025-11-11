@@ -8,3 +8,22 @@ Providing a changelog with your apps and libraries is essential of the "release 
 Planning releases and maintaining changelogs in lockstep can be a tedious process and in the most basic form involves manually updating version numbers and manually summarizing recent commits into a changelog file.
 
 This is where Bumper comes in...
+
+## Goals
+
+### Consistent CLI experience
+
+Bumper aims to provide a consistent CLI experience regardless of whether you are:
+
+- Working with a Rust, Go, TypeScript or any project
+- A single project repo or a monorepo
+- Storing versions in text files, `package.json`, `Cargo.toml`, or any other file format
+- Managing changelogs as markdown files, GitHub releases, or any other format.
+
+### Code over configuration
+
+An explicit goal is not to inundate you with a sea of configuration options to make Bumper compatible with your project. Everything related to manipulating versions and changelogs is a script that Bumper will call. Hence, the philosophy is code over configuration and it is more aligned to the unix philosophy of delegating to smaller programs that do one thing well. Of course, Bumper provides a handful of built-in scripts for common setups (see `bumper builtins --help` after installing) but it is ready for many bespoke requirements out of the box.
+
+### CI/CD friendly
+
+Bumper is designed to be easily integrated into CI/CD pipelines. Whether you're using GitHub Actions, GitLab CI, Jenkins, or any other CI/CD tool, the `bumper` CLI can be used to automate release pull requests or commits and drive other release tools like `npm`, `goreleaser` and so on.
