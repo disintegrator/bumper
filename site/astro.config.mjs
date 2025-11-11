@@ -1,13 +1,19 @@
 // @ts-check
 import process from "node:process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
 
-import cliSidebar from './cli-sidebar.json' with { type: 'json' };
-
+/** @type {import("@astrojs/starlight/types").StarlightUserConfig['sidebar']} */
+let cliSidebar = []
+if (existsSync(join('.', 'cli-sidebar.json'))) {
+    cliSidebar = [{
+        label: 'CLI reference',
+        items: JSON.parse(readFileSync(join('.', 'cli-sidebar.json'), 'utf-8'))
+    }]
+}
 
 const version = readFileSync(join('..', 'VERSION'), 'utf-8').trim();
 
@@ -59,10 +65,7 @@ export default defineConfig({
                     label: 'Reference',
                     autogenerate: { directory: 'reference' },
                 },
-                {
-                    label: 'CLI reference',
-                    items: cliSidebar
-                },
+                ...cliSidebar,
                 {
                     label: 'Changelog',
                     link: 'https://github.com/disintegrator/bumper/blob/main/CHANGELOG.md',
