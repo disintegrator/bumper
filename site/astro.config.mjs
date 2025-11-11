@@ -1,11 +1,15 @@
 // @ts-check
 import process from "node:process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import tailwindcss from '@tailwindcss/vite';
 
 import cliSidebar from './cli-sidebar.json' with { type: 'json' };
 
-import tailwindcss from '@tailwindcss/vite';
+
+const version = readFileSync(join('..', 'VERSION'), 'utf-8').trim();
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,12 +21,18 @@ export default defineConfig({
             title: 'Bumper',
             tagline: 'Changelog-driven development for your projects',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/disintegrator/bumper' }],
+            logo: {
+                src: './src/assets/logo.svg',
+            },
             customCss: [
                 './src/styles/global.css',
                 './src/styles/theme.css',
             ],
             components: {
                 Hero: './src/components/hero.astro',
+            },
+            editLink: {
+                baseUrl: "https://github.com/disintegrator/bumper/edit/main/site",
             },
             sidebar: [
                 {
@@ -52,12 +62,19 @@ export default defineConfig({
                 {
                     label: 'CLI reference',
                     items: cliSidebar
-                }
+                },
+                {
+                    label: 'Changelog',
+                    link: 'https://github.com/disintegrator/bumper/blob/main/CHANGELOG.md',
+                },
             ],
         }),
     ],
 
     vite: {
         plugins: [tailwindcss()],
+        define: {
+            '__VERSION__': JSON.stringify(version),
+        },
     },
 });

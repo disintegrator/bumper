@@ -3,6 +3,8 @@ title: Installation
 description: How to install Bumper on your system
 ---
 
+import { Code } from "astro-expressive-code/components";
+
 ## With `curl`
 
 You can install Bumper by running the following command in your terminal:
@@ -19,9 +21,7 @@ go install github.com/disintegrator/bumper/cmd/bumper@latest
 
 ## With `mise`
 
-```sh
-mise use github:disintegrator/bumper
-```
+<Code code={`mise use github:disintegrator/bumper@${__VERSION__}`} lang="sh" />
 
 ## APK, Debian and RPM packages
 
