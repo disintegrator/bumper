@@ -1,0 +1,54 @@
+---
+title: Version commands
+description: Learn how bumper works with versioning and the commands available to manage versions.
+sidebar:
+  order: 3
+---
+
+There are two versioning commands that Bumper relies as part of the release process and to power command like `bumper latest` and `bumper commit`. Each release group must configure these:
+
+```toml {"Version commands":6} {7,8}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["..."]
+cat_cmd = ["..."]
+
+current_cmd = ["..."]
+next_cmd = ["..."]
+```
+
+## `current_cmd`
+
+This command is used to read the current version of a release group. It is called with the following environment variables set:
+
+- `BUMPER_GROUP`: The release group whose version is being requested
+
+It must only output the version string to standard output (`STDOUT`). For example, if your `current_cmd` is `["./get-current-version"]` and the user runs `bumper latest --group my-package`, the command will be called like this:
+
+```bash
+BUMPER_GROUP="my-package" ./get-current-version
+```
+
+And it would be expected to output a version like so:
+
+```
+1.2.3
+```
+
+Direct any logging or error reporting to standard error (`STDERR`) so that Bumper can correctly parse the version from stdout.
+
+## `next_cmd`
+
+This command is used to update the version of a release group. It is called with the following environment variables set:
+
+- `BUMPER_GROUP`: The release group whose version is being updated
+- `BUMPER_GROUP_NEXT_VERSION`: The next version for the group to update to
+
+If your `next_cmd` is `["./set-next-version"]` and the user runs `bumper commit`, the command will be called _once per release group_ like this:
+
+```bash
+BUMPER_GROUP="my-package" BUMPER_GROUP_NEXT_VERSION="1.2.4" ./set-next-version
+```
+
+Bumper does not expect any output from this command, but it's a good idea to still direct any logging or error reporting to `STDERR`.

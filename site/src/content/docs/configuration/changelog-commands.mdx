@@ -1,0 +1,65 @@
+---
+title: Changelog commands
+description: Learn how bumper works with changelogs and the commands available to manage them.
+sidebar:
+  order: 2
+---
+
+There are two commands that Bumper relies on for working with changelogs. Each release group must configure these:
+
+```toml {"Changelog commands":4} {5,6}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+
+changelog_cmd = ["..."]
+cat_cmd = ["..."]
+current_cmd = ["..."]
+next_cmd = ["..."]
+```
+
+## `changelog_cmd`
+
+This command is used for updating the changelog it will be called with two environment variables set:
+
+- `BUMPER_GROUP`: The group that needs a changelog update
+- `BUMPER_GROUP_NEXT_VERSION`: The next version for the group
+
+Additionally, the command will receive a repeating number of command-line flags representing entries in the changelog:
+
+- `--patch <entry>`
+- `--minor <entry>`
+- `--major <entry>`
+
+So if your `changelog_cmd` is `["./update-changelog"]` and there are two patch entries and one minor entry, the command will be called like this:
+
+```bash
+BUMPER_GROUP="my-package" BUMPER_GROUP_NEXT_VERSION="1.2.0" ./update-changelog --patch "Fixed bug A" --patch "Fixed bug B" --minor "Added feature C"
+```
+
+This command will be called once per release group when running `bumper commit`. For example, if there are three release groups, the command will be called three times, once for each group.
+
+## `cat_cmd`
+
+The cat command is used by Bumper to read the contents of a changelog release section. It powers `bumper cat` which is useful for powering various types of automations like release tools that can create GitHub Releases. It is called with the following environment variables set:
+
+- `BUMPER_GROUP`: The release group whose changelog entry is being requested
+- `BUMPER_GROUP_VERSION`: The version of the release group whose changelog entry is being requested
+
+So if your `cat_cmd` is `["./cat-changelog"]` the user runs `bumper cat --group my-package --version 1.2.0`, the command will be called like this:
+
+```bash
+BUMPER_GROUP="my-package" BUMPER_GROUP_VERSION="1.2.0" ./cat-changelog
+```
+
+This command is expected to output the changelog entry for that release to standard output (`STDOUT`). Direct any logging or error reporting to standard error (`STDERR`) so that Bumper can correctly parse the changelog entry from stdout.
+
+## Built-in commands
+
+### `bumper builtins amendlog:default`
+
+This is the default changelog command (`changelog_cmd`) used by Bumper. It maintains a `CHANGELOG.md` file, writing entries into it using markdown.
+
+### `bumper builtins cat:default`
+
+This is the default cat command (`cat_cmd`) used by Bumper. It pairs with `bumper builtins amendlog:default` to read release entries from a `CHANGELOG.md` file. It expects each release to be delineate by a level two heading in the form of `## [RELEASE_GROUP_NAME] [VERSION]`. It will capture everything from after that line until the next level two heading or the end of the file. Whatever it captures it prints to `STDOUT`.
