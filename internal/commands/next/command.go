@@ -1,4 +1,4 @@
-package current
+package next
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 
 func NewCommand(logger *slog.Logger) *cli.Command {
 	return &cli.Command{
-		Name:  "current",
-		Usage: "Print the current version of a release group",
+		Name:  "next",
+		Usage: "Print the next version of a release group",
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
 			&cli.StringFlag{
@@ -45,13 +45,25 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			currentVersion, err := workspace.GetCurrentVersion(ctx, dir, group)
+			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to get current version", slog.String("group", groupName), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 
-			fmt.Println(currentVersion)
+			status, ok := statuses[groupName]
+			if !ok {
+				logger.InfoContext(ctx, "no pending version bump found for group", slog.String("group", groupName))
+				return nil
+			}
+
+			nextVersion, err := workspace.GetNextVersion(ctx, dir, group, status.Level)
+			if err != nil {
+				logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
+				return cmd.Failed(err)
+			}
+
+			fmt.Println(nextVersion)
 
 			return nil
 		},

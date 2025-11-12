@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"errors"
@@ -8,10 +9,12 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/goccy/go-yaml"
 	"github.com/samber/lo"
 )
@@ -202,4 +205,73 @@ func extractFrontMatter(content string, dst any) (string, error) {
 	}
 
 	return strings.TrimSpace(rest), nil
+}
+
+func GetCurrentVersion(ctx context.Context, dir string, group ReleaseGroup) (*semver.Version, error) {
+	if len(group.CurrentCMD) == 0 {
+		return nil, errors.New("no current version command defined for release group")
+	}
+
+	currentProg := group.CurrentCMD[0]
+	currentArgs := group.CurrentCMD[1:]
+	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
+	stdout := new(bytes.Buffer)
+	cmd.Dir = dir
+	cmd.Stdout = stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
+	)
+
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("execute current version command: %w", err)
+	}
+
+	currentVersionStr := strings.TrimSpace(stdout.String())
+	currentSemver, err := semver.NewVersion(currentVersionStr)
+	if err != nil {
+		return nil, fmt.Errorf("%s: parse current version string: %w", currentVersionStr, err)
+	}
+
+	return currentSemver, nil
+}
+
+func GetNextVersion(ctx context.Context, dir string, group ReleaseGroup, level BumpLevel) (string, error) {
+	if len(group.CurrentCMD) == 0 {
+		return "", errors.New("no current version command defined for release group")
+	}
+
+	currentProg := group.CurrentCMD[0]
+	currentArgs := group.CurrentCMD[1:]
+	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
+	stdout := new(bytes.Buffer)
+	cmd.Dir = dir
+	cmd.Stdout = stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(
+		os.Environ(),
+		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
+	)
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("execute current version command: %w", err)
+	}
+
+	currentVersionStr := strings.TrimSpace(stdout.String())
+	currentSemver, err := semver.NewVersion(currentVersionStr)
+	if err != nil {
+		return "", fmt.Errorf("%s: parse current version string: %w", currentVersionStr, err)
+	}
+
+	switch level {
+	case BumpLevelMajor:
+		return currentSemver.IncMajor().String(), nil
+	case BumpLevelMinor:
+		return currentSemver.IncMinor().String(), nil
+	case BumpLevelPatch:
+		return currentSemver.IncPatch().String(), nil
+	default:
+		return "", errors.New("invalid bump level for next version")
+	}
 }

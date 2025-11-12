@@ -1,7 +1,6 @@
 package commit
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Masterminds/semver/v3"
 	"github.com/disintegrator/bumper/internal/cmd"
 	"github.com/disintegrator/bumper/internal/commands/shared"
 	"github.com/disintegrator/bumper/internal/workspace"
@@ -89,7 +87,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 					amendFlags = append(amendFlags, "--patch", entry.Content)
 				}
 
-				nextVersion, err := getNextVersion(ctx, dir, g, status.Level)
+				nextVersion, err := workspace.GetNextVersion(ctx, dir, g, status.Level)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
 					return cmd.Failed(err)
@@ -114,45 +112,6 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 
 			return nil
 		},
-	}
-}
-
-func getNextVersion(ctx context.Context, dir string, group workspace.ReleaseGroup, level workspace.BumpLevel) (string, error) {
-	if len(group.CurrentCMD) == 0 {
-		return "", errors.New("no current version command defined for release group")
-	}
-
-	currentProg := group.CurrentCMD[0]
-	currentArgs := group.CurrentCMD[1:]
-	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
-	stdout := new(bytes.Buffer)
-	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
-	)
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("execute current version command: %w", err)
-	}
-
-	currentVersionStr := strings.TrimSpace(stdout.String())
-	currentSemver, err := semver.NewVersion(currentVersionStr)
-	if err != nil {
-		return "", fmt.Errorf("%s: parse current version string: %w", currentVersionStr, err)
-	}
-
-	switch level {
-	case workspace.BumpLevelMajor:
-		return currentSemver.IncMajor().String(), nil
-	case workspace.BumpLevelMinor:
-		return currentSemver.IncMinor().String(), nil
-	case workspace.BumpLevelPatch:
-		return currentSemver.IncPatch().String(), nil
-	default:
-		return "", errors.New("invalid bump level for next version")
 	}
 }
 
