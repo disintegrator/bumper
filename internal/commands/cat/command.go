@@ -2,6 +2,7 @@ package cat
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -43,6 +44,12 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			cfg, err := shared.LoadConfig(ctx, logger, dir)
 			if err != nil {
 				return err
+			}
+
+			if len(cfg.Groups) == 0 {
+				err := errors.New("no release groups defined in configuration")
+				logger.ErrorContext(ctx, err.Error(), slog.String("hint", "use `bumper create` to create one"))
+				return cmd.Failed(err)
 			}
 
 			groupName, err := shared.GroupFlagOrDefault(ctx, logger, c, cfg)

@@ -129,8 +129,9 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				groupOpts = append(groupOpts, huh.NewOption(g.Name, g.Name))
 			}
 			if len(groupOpts) == 0 {
-				logger.ErrorContext(ctx, "no release groups defined. use `bumper create` to create some.")
-				return cmd.Failed(errors.New("no release groups defined"))
+				err := errors.New("no release groups defined in configuration")
+				logger.ErrorContext(ctx, err.Error(), slog.String("hint", "use `bumper create` to create one"))
+				return cmd.Failed(err)
 			}
 
 			if len(cfg.Groups) == 1 && len(bumpOpts.groups) == 0 {
