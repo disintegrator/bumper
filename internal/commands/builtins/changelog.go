@@ -57,10 +57,9 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			cfg, err := workspace.LoadConfig(dir)
+			cfg, err := shared.LoadConfig(ctx, logger, dir)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to load config", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
+				return err
 			}
 
 			displayName := groupName
@@ -220,10 +219,10 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
-			cfg, err := workspace.LoadConfig(dir)
+
+			cfg, err := shared.LoadConfig(ctx, logger, dir)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to load config", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
+				return err
 			}
 
 			group, ok := cfg.IndexReleaseGroups()[groupName]

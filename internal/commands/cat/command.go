@@ -21,10 +21,9 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
 			&cli.StringFlag{
-				Name:     "group",
-				Usage:    "The group to show release notes for",
-				Required: true,
-				Sources:  cli.EnvVars("BUMPER_GROUP"),
+				Name:    "group",
+				Usage:   "The group to show release notes for",
+				Sources: cli.EnvVars("BUMPER_GROUP"),
 			},
 			&cli.StringFlag{
 				Name:     "version",
@@ -34,17 +33,21 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			groupName := c.String("group")
 			rawdir := shared.DirFlag(c)
 			dir, err := workspace.GetWd(rawdir)
 			if err != nil {
 				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
-			cfg, err := workspace.LoadConfig(dir)
+
+			cfg, err := shared.LoadConfig(ctx, logger, dir)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to load config", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
+				return err
+			}
+
+			groupName, err := shared.GroupFlagOrDefault(ctx, logger, c, cfg)
+			if err != nil {
+				return err
 			}
 
 			cfgGroups := cfg.IndexReleaseGroups()

@@ -77,10 +77,18 @@ func LoadConfig(baseDir string) (*Config, error) {
 		return nil, fmt.Errorf("decode: %s: %w", configFilename, err)
 	}
 
+	if err := validateConfig(&cfg); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
 }
 
 func SaveConfig(baseDir string, cfg *Config) error {
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+
 	configFilename := ConfigFilename(baseDir)
 
 	f, err := os.OpenFile(configFilename, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
