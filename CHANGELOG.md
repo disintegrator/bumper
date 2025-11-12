@@ -1,5 +1,14 @@
 # Changelog
 
+## Bumper 0.0.5
+
+### Patch Changes
+
+- bc35fd2: Added `bumper next` command which will display the next version of a release group based on the pending bumps in the workspace.
+- bc35fd2: Bumper commands `bump`, `cat`, `current` and `next` now validate that at least one group is defined in the configuration file before proceeding.
+- bc35fd2: Rename `bumper latest` to `bumper current`
+- bc35fd2: Make the --group flag optional for several commands when there is only one release group
+
 ## Bumper 0.0.4
 
 ### Patch Changes
