@@ -2,15 +2,12 @@ package commit
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -18,7 +15,6 @@ import (
 	"github.com/disintegrator/bumper/internal/cmd"
 	"github.com/disintegrator/bumper/internal/commands/shared"
 	"github.com/disintegrator/bumper/internal/workspace"
-	"github.com/goccy/go-yaml"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v3"
 )
@@ -45,175 +41,55 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 
 			cfgGroups := cfg.IndexReleaseGroups()
 
-			repo, err := workspace.OpenGitRepository(dir)
-			switch {
-			case err != nil:
-				logger.WarnContext(ctx, "failed to open git repository", slog.String("dir", dir), slog.String("error", err.Error()))
-			case repo == nil:
-				logger.WarnContext(ctx, "git repository not found", slog.String("dir", dir))
-			}
-
-			highestBump := make(map[string]workspace.BumpLevel)
-			for _, g := range cfg.Groups {
-				highestBump[g.Name] = workspace.BumpLevelNone
-			}
-
-			pattern := workspace.BumpFilename(dir, "*")
-			matches, err := filepath.Glob(pattern)
+			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to glob bump files", slog.String("dir", dir), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 
-			if len(matches) == 0 {
-				logger.InfoContext(ctx, "no pending version bumps found", slog.String("pattern", pattern))
+			if err := workspace.DeleteBumps(ctx, dir); err != nil {
+				logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
+				return cmd.Failed(err)
+			}
+
+			if len(statuses) == 0 {
+				logger.InfoContext(ctx, "no pending version bumps found", slog.String("dir", dir))
 				return nil
 			}
 
-			type logEntry struct {
-				timestamp int64
-				content   string
-			}
-
-			type logs struct {
-				major []logEntry
-				minor []logEntry
-				patch []logEntry
-			}
-			groupLogs := make(map[string]*logs)
-
-			var itererr error
-			lo.ForEachWhile(matches, func(match string, _ int) bool {
-				f, err := os.Open(match)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to open bump file", slog.String("file", match), slog.String("error", err.Error()))
-					itererr = err
-					return false
-				}
-				defer f.Close()
-
-				content, err := io.ReadAll(f)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to read bump file", slog.String("file", match), slog.String("error", err.Error()))
-					itererr = err
-					return false
-				}
-
-				frontMatter := make(map[string]string)
-				message, err := extractFrontMatter(string(content), &frontMatter)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to extract front matter", slog.String("file", match), slog.String("error", err.Error()))
-					itererr = err
-					return false
-				}
-
-				timestamp := int64(0)
-				commit, err := workspace.GetFirstCommitSHA(repo, match)
-				switch {
-				case err != nil:
-					logger.WarnContext(ctx, "failed to get initial commit SHA for bump file", slog.String("error", err.Error()), slog.String("file", match))
-				case commit == nil:
-					logger.WarnContext(ctx, "initial commit SHA for bump file not found", slog.String("file", match))
-				default:
-					timestamp = commit.When.Unix()
-					message = fmt.Sprintf("%s: %s", commit.SHA, message)
-				}
-
-				entry := logEntry{timestamp: timestamp, content: message}
-
-				for groupName, level := range frontMatter {
-					if _, ok := highestBump[groupName]; !ok {
-						logger.WarnContext(ctx, "skipping bump for unknown group", slog.String("file", match), slog.String("group", groupName))
-						continue
-					}
-
-					if _, ok := groupLogs[groupName]; !ok {
-						groupLogs[groupName] = &logs{
-							major: []logEntry{},
-							minor: []logEntry{},
-							patch: []logEntry{},
-						}
-					}
-
-					switch level {
-					case "major":
-						highestBump[groupName] = max(highestBump[groupName], workspace.BumpLevelMajor)
-						groupLogs[groupName].major = append(groupLogs[groupName].major, entry)
-					case "minor":
-						highestBump[groupName] = max(highestBump[groupName], workspace.BumpLevelMinor)
-						groupLogs[groupName].minor = append(groupLogs[groupName].minor, entry)
-					case "patch":
-						highestBump[groupName] = max(highestBump[groupName], workspace.BumpLevelPatch)
-						groupLogs[groupName].patch = append(groupLogs[groupName].patch, entry)
-					default:
-						logger.WarnContext(ctx, "unknown level in bump file front matter", slog.String("file", match), slog.String("group", groupName), slog.String("level", level))
-					}
-				}
-
-				return true
+			entries := lo.Entries(statuses)
+			slices.SortStableFunc(entries, func(e1, e2 lo.Entry[string, *workspace.ReleaseGroupStatus]) int {
+				return strings.Compare(e1.Key, e2.Key)
 			})
-			if itererr != nil {
-				return cmd.Failed(itererr)
-			}
 
-			lo.ForEachWhile(matches, func(match string, _ int) bool {
-				err := os.Remove(match)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to remove bump file", slog.String("file", match), slog.String("error", err.Error()))
-					itererr = err
-					return false
-				}
-				return true
-			})
-			if itererr != nil {
-				return cmd.Failed(itererr)
-			}
+			committedGroups := make([]string, 0, len(statuses))
+			for _, entry := range entries {
+				groupName, status := entry.Key, entry.Value
 
-			committedGroups := make([]string, 0, len(highestBump))
-			for groupName, level := range highestBump {
 				g, ok := cfgGroups[groupName]
 				if !ok {
 					logger.WarnContext(ctx, "skipping commit for unknown group", slog.String("group", groupName))
 					continue
 				}
 
-				if level == 0 {
+				if status.Level == 0 {
 					continue
 				}
 
-				gl, ok := groupLogs[groupName]
-				if !ok {
-					gl = &logs{
-						major: []logEntry{},
-						minor: []logEntry{},
-						patch: []logEntry{},
-					}
-				}
-
-				slices.SortStableFunc(gl.major, func(a, b logEntry) int {
-					return cmp.Compare(a.timestamp, b.timestamp)
-				})
-				slices.SortStableFunc(gl.minor, func(a, b logEntry) int {
-					return cmp.Compare(a.timestamp, b.timestamp)
-				})
-				slices.SortStableFunc(gl.patch, func(a, b logEntry) int {
-					return cmp.Compare(a.timestamp, b.timestamp)
-				})
-
-				amendFlags := make([]string, 0, len(gl.major)+len(gl.minor)+len(gl.patch)+2)
+				amendFlags := make([]string, 0, len(status.MajorLogs)+len(status.MinorLogs)+len(status.PatchLogs)+2)
 				amendFlags = append(amendFlags, "--group", groupName)
 
-				for _, entry := range gl.major {
-					amendFlags = append(amendFlags, "--major", entry.content)
+				for _, entry := range status.MajorLogs {
+					amendFlags = append(amendFlags, "--major", entry.Content)
 				}
-				for _, entry := range gl.minor {
-					amendFlags = append(amendFlags, "--minor", entry.content)
+				for _, entry := range status.MinorLogs {
+					amendFlags = append(amendFlags, "--minor", entry.Content)
 				}
-				for _, entry := range gl.patch {
-					amendFlags = append(amendFlags, "--patch", entry.content)
+				for _, entry := range status.PatchLogs {
+					amendFlags = append(amendFlags, "--patch", entry.Content)
 				}
 
-				nextVersion, err := getNextVersion(ctx, dir, g, level)
+				nextVersion, err := getNextVersion(ctx, dir, g, status.Level)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
 					return cmd.Failed(err)
@@ -234,7 +110,6 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				committedGroups = append(committedGroups, groupName)
 			}
 
-			slices.Sort(committedGroups)
 			fmt.Println(strings.Join(committedGroups, "\n"))
 
 			return nil
@@ -325,38 +200,4 @@ func commitChangelog(ctx context.Context, dir string, group workspace.ReleaseGro
 	}
 
 	return nil
-}
-
-func extractFrontMatter(content string, dst any) (string, error) {
-	state := "initial"
-	fm := ""
-	rest := ""
-	for line := range strings.Lines(content) {
-		switch {
-		case state == "initial":
-			if line != "---\n" {
-				return "", errors.New("front matter must start with ---")
-			}
-			state = "frontmatter"
-		case state == "frontmatter" && line == "---\n":
-			state = "slurping"
-		case state == "frontmatter":
-			fm += line
-		case state == "slurping":
-			rest += line
-		default:
-			return "", errors.New("invalid front matter parse state")
-		}
-	}
-
-	fm = strings.TrimSpace(fm)
-	if fm == "" {
-		fm = "{}"
-	}
-
-	if err := yaml.Unmarshal([]byte(fm), dst); err != nil {
-		return "", fmt.Errorf("parse frontmatter yaml: %w", err)
-	}
-
-	return strings.TrimSpace(rest), nil
 }

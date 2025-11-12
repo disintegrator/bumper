@@ -10,6 +10,8 @@ import (
 	"github.com/go-git/go-git/v6/plumbing/object"
 )
 
+var errNoGitRepository = errors.New("no git repository found")
+
 func isShallowRepo(repo *git.Repository) (bool, error) {
 	shallows, err := repo.Storer.Shallow()
 	if err != nil {
@@ -35,9 +37,12 @@ func deepenShallowRepo(repo *git.Repository, by int) error {
 	return nil
 }
 
-func OpenGitRepository(dir string) (*git.Repository, error) {
+func openGitRepository(dir string) (*git.Repository, error) {
 	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{DetectDotGit: true})
-	if err != nil {
+	switch {
+	case errors.Is(err, git.ErrRepositoryNotExists):
+		return nil, errNoGitRepository
+	case err != nil:
 		return nil, fmt.Errorf("open git repository: %w", err)
 	}
 
@@ -55,12 +60,12 @@ func OpenGitRepository(dir string) (*git.Repository, error) {
 	return repo, nil
 }
 
-type Commit struct {
+type vcsCommit struct {
 	SHA  string
 	When time.Time
 }
 
-func GetFirstCommitSHA(repo *git.Repository, filename string) (*Commit, error) {
+func getFirstCommit(repo *git.Repository, filename string) (*vcsCommit, error) {
 	abs, err := filepath.Abs(filename)
 	if err != nil {
 		return nil, fmt.Errorf("get absolute path: %w", err)
@@ -104,7 +109,7 @@ func GetFirstCommitSHA(repo *git.Repository, filename string) (*Commit, error) {
 	var ferr *foundCommit
 	switch {
 	case errors.As(err, &ferr):
-		return &Commit{SHA: ferr.sha, When: ferr.date}, nil
+		return &vcsCommit{SHA: ferr.sha, When: ferr.date}, nil
 	case err != nil:
 		return nil, fmt.Errorf("iterate commits: %w", err)
 	default:
