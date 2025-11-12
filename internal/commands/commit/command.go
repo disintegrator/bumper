@@ -213,19 +213,19 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 					amendFlags = append(amendFlags, "--patch", entry.content)
 				}
 
-				nextVersion, err := getNextVersion(ctx, g, level)
+				nextVersion, err := getNextVersion(ctx, dir, g, level)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
 					return cmd.Failed(err)
 				}
 
-				err = commitVersionBump(ctx, g, nextVersion)
+				err = commitVersionBump(ctx, dir, g, nextVersion)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to commit version bump", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
 					return cmd.Failed(err)
 				}
 
-				err = commitChangelog(ctx, g, nextVersion, amendFlags)
+				err = commitChangelog(ctx, dir, g, nextVersion, amendFlags)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to commit changelog", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
 					return cmd.Failed(err)
@@ -242,7 +242,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 	}
 }
 
-func getNextVersion(ctx context.Context, group workspace.ReleaseGroup, level workspace.BumpLevel) (string, error) {
+func getNextVersion(ctx context.Context, dir string, group workspace.ReleaseGroup, level workspace.BumpLevel) (string, error) {
 	if len(group.CurrentCMD) == 0 {
 		return "", errors.New("no current version command defined for release group")
 	}
@@ -251,6 +251,7 @@ func getNextVersion(ctx context.Context, group workspace.ReleaseGroup, level wor
 	currentArgs := group.CurrentCMD[1:]
 	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
 	stdout := new(bytes.Buffer)
+	cmd.Dir = dir
 	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(
@@ -280,7 +281,7 @@ func getNextVersion(ctx context.Context, group workspace.ReleaseGroup, level wor
 	}
 }
 
-func commitVersionBump(ctx context.Context, group workspace.ReleaseGroup, versionStr string) error {
+func commitVersionBump(ctx context.Context, dir string, group workspace.ReleaseGroup, versionStr string) error {
 	if len(group.NextCMD) == 0 {
 		return errors.New("no next version command defined for release group")
 	}
@@ -288,6 +289,7 @@ func commitVersionBump(ctx context.Context, group workspace.ReleaseGroup, versio
 	nextProg := group.NextCMD[0]
 	nextArgs := group.NextCMD[1:]
 	cmd := exec.CommandContext(ctx, nextProg, nextArgs...)
+	cmd.Dir = dir
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
@@ -302,7 +304,7 @@ func commitVersionBump(ctx context.Context, group workspace.ReleaseGroup, versio
 	return nil
 }
 
-func commitChangelog(ctx context.Context, group workspace.ReleaseGroup, versionStr string, flags []string) error {
+func commitChangelog(ctx context.Context, dir string, group workspace.ReleaseGroup, versionStr string, flags []string) error {
 	if len(group.ChangelogCMD) == 0 {
 		return errors.New("no changelog command defined for release group")
 	}
@@ -310,6 +312,7 @@ func commitChangelog(ctx context.Context, group workspace.ReleaseGroup, versionS
 	changelogProg := group.ChangelogCMD[0]
 	changelogArgs := append(group.ChangelogCMD[1:], flags...)
 	cmd := exec.CommandContext(ctx, changelogProg, changelogArgs...)
+	cmd.Dir = dir
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),

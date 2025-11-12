@@ -56,6 +56,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			program := group.CurrentCMD[0]
 			args := group.CurrentCMD[1:]
 			currentcmd := exec.CommandContext(ctx, program, args...)
+			currentcmd.Dir = dir
 			currentcmd.Env = append(
 				os.Environ(),
 				fmt.Sprintf("BUMPER_GROUP=%s", groupName),
