@@ -52,3 +52,182 @@ BUMPER_GROUP="my-package" BUMPER_GROUP_NEXT_VERSION="1.2.4" ./set-next-version
 ```
 
 Bumper does not expect any output from this command, but it's a good idea to still direct any logging or error reporting to `STDERR`.
+
+## Built-in commands
+
+### `bumper builtins next:default`
+
+This next command will update a `versions.toml` file in the `.bumper` directory with a release groups next version.
+
+For example, given the following:
+
+```toml title=".bumper/versions.toml"
+[versions]
+"my-package" = "1.2.3"
+```
+
+When `bumper commit` is called with a patch level update and this built-in command is used as the `next_cmd`, the file will be updated to:
+
+```toml title=".bumper/versions.toml"
+[versions]
+"my-package" = "1.2.4"
+```
+
+### `bumper builtins next:file`
+
+This next command will update a file on the filesystem with the bare next version.
+
+For example, if you have this bumper config:
+
+```toml {7}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:file", "--path", "VERSION"]
+next_cmd = ["bumper", "builtins", "next:file", "--path", "VERSION"]
+```
+
+Then running bumper commit will update the `VERSION` file with the next version. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+
+```sh
+$ cat VERSION
+1.2.3
+```
+
+### `bumper builtins next:npm`
+
+This next command will update the `version` field in a `package.json` file with the next version. It's a convenient built-in to use for release groups that affect npm packages. If your current CI/CD publishing process kicks off based on changes to package.json files, this built-in can continue to drive that. For example, if you have this bumper config
+
+```toml {7}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:npm", "--package", "package.json"]
+next_cmd = ["bumper", "builtins", "next:npm", "--package", "package.json"]
+```
+
+Then running bumper commit will update package.json file with the next version. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+
+```diff lang=jsonc
+{
+  "name": "my-package",
+- "version": "1.2.3",
++ "version": "1.2.4",
+  // ...rest of package.json
+}
+```
+
+### `bumper builtins current:default`
+
+This current command reads the current version of a release group from a `versions.toml` file in the `.bumper` directory.
+
+For example, given the following:
+
+```toml title=".bumper/versions.toml"
+[versions]
+"my-package" = "1.2.3"
+```
+
+When `bumper latest --group my-package` is called with this built-in command as the `current_cmd`, it will output `1.2.3`.
+
+### `bumper builtins current:file`
+
+This current command reads the current version from a file on the filesystem.
+
+For example, if you have this bumper config:
+
+```toml {6}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:file", "--path", "VERSION"]
+next_cmd = ["bumper", "builtins", "next:file", "--path", "VERSION"]
+```
+
+And a `VERSION` file containing:
+
+```sh
+$ cat VERSION
+1.2.3
+```
+
+Then running `bumper latest --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+
+### `bumper builtins current:npm`
+
+This current command reads the current version from the `version` field in a `package.json` file. It's a convenient built-in to use for release groups that affect npm packages. For example, if you have this bumper config:
+
+```toml {6}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:npm", "--package", "package.json"]
+next_cmd = ["bumper", "builtins", "next:npm", "--package", "package.json"]
+```
+
+And a `package.json` file containing:
+
+```json
+{
+  "name": "my-package",
+  "version": "1.2.3"
+  // ...rest of package.json
+}
+```
+
+Then running `bumper latest --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+
+## Custom commands
+
+Current and next commands are just that, commands. You do not have to set them to `bumper builtins ...` if none of the above suite your needs. You can write your own scripts or programs that read and write versions in whatever way makes sense for your project.
+
+Here's an example of current and next commands that read/write versions in a SQLite database:
+
+```sh title="scripts/sqlite-next.sh"
+#!/usr/bin/env bash
+
+set -e
+
+if ! command -v sqlite3 &> /dev/null; then
+    echo "Error: sqlite3 command not found. Please install SQLite." >&2
+    exit 1
+fi
+
+if [ -z "$BUMPER_GROUP" ]; then
+    echo "Error: BUMPER_GROUP environment variable is not set." >&2
+    exit 1
+fi
+
+if [ -z "$BUMPER_GROUP_NEXT_VERSION" ]; then
+    echo "Error: BUMPER_GROUP_NEXT_VERSION environment variable is not set." >&2
+    exit 1
+fi
+
+exec sqlite3 versions.db "UPDATE versions SET version='$BUMPER_GROUP_NEXT_VERSION' WHERE group='$BUMPER_GROUP';"
+```
+
+```sh title="scripts/sqlite-current.sh"
+#!/usr/bin/env bash
+
+set -e
+
+if ! command -v sqlite3 &> /dev/null; then
+    echo "Error: sqlite3 command not found. Please install SQLite." >&2
+    exit 1
+fi
+
+if [ -z "$BUMPER_GROUP" ]; then
+    echo "Error: BUMPER_GROUP environment variable is not set." >&2
+    exit 1
+fi
+
+exec sqlite3 versions.db "SELECT version FROM versions WHERE group='$BUMPER_GROUP';"
+```

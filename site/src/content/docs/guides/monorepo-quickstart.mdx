@@ -5,4 +5,53 @@ sidebar:
   order: 2
 ---
 
-TODO
+Starting with the [simple quickstart](/docs/guides/quickstart) is a good first step even when targeting a monorepo. The next thing you'd want to do is potentially add more release groups to define what the release lines are for the various projects in your monorepo.
+
+For instance if you are building a monorepo that contains:
+
+- Server/API layer that is the core of the project
+- A dashboard web app that talks to the API
+- A TypeScript CLI and SDK that your users can install and use
+
+You might set up your bumper configuration like so:
+
+```sh
+bumper init
+bumper create api dashboard npm-packages
+```
+
+Then you would potentially customize the commands that would best suite your workflow. For example, you might use the bumper's built-in npm integrations for the `dashboard` and a script that can version the `npm-packages` together. Your final configuration might look something like this:
+
+```toml title=".bumper/bumper.toml" {"Store server version in a plain file":7} {8,9} {"Use npm versioning for dashboard":17} {18,19} {"Version CLI/SDK together":27} {28,29}
+[[groups]]
+  name = "api"
+  display_name = "api"
+  base_branch = "origin/main"
+  changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+  cat_cmd = ["bumper", "builtins", "cat:default"]
+
+  current_cmd = ["bumper", "builtins", "current:file", "--path", "server/VERSION"]
+  next_cmd = ["bumper", "builtins", "next:file", "--path", "server/VERSION"]
+
+[[groups]]
+  name = "dashboard"
+  display_name = "dashboard"
+  base_branch = "origin/main"
+  changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+  cat_cmd = ["bumper", "builtins", "cat:default"]
+
+  current_cmd = ["bumper", "builtins", "current:npm", "--package", "dashboard/package.json"]
+  next_cmd = ["bumper", "builtins", "next:npm", "--package", "dashboard/package.json"]
+
+[[groups]]
+  name = "npm-packages"
+  display_name = "npm-packages"
+  base_branch = "origin/main"
+  changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+  cat_cmd = ["bumper", "builtins", "cat:default"]
+
+  current_cmd = ["bumper", "builtins", "current:npm", "--package", "sdk/package.json"]
+  next_cmd = ["bumper", "builtins", "next:default", "--package", "sdk/package.json", "--package", "cli/package.json"]
+```
+
+You can read more about configuring Bumper in the [configuration docs](/docs/configuration).
