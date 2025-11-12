@@ -1,5 +1,11 @@
 # Changelog
 
+## Bumper 0.0.4
+
+### Patch Changes
+
+- 13c6ee8: Run all commands relative to workspace directory
+
 ## Bumper 0.0.3
 
 ### Patch Changes
