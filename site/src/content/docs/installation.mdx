@@ -33,14 +33,17 @@ All release artifacts are signed using [cosign](https://github.com/sigstore/cosi
 
 First, download the checksums file and its signature:
 
-```sh
-VERSION=0.0.3
+<Code
+  code={`
+VERSION=${__VERSION__}
 BASE_URL="https://github.com/disintegrator/bumper/releases/download/v$VERSION"
 curl -fsSLO "$BASE_URL/checksums.txt"
 curl -fsSLO "$BASE_URL/checksums.txt.pem"
 curl -fsSLO "$BASE_URL/checksums.txt.keyless.sig"
 curl -fsSLO "$BASE_URL/bumper_$VERSION_darwin_arm64.tar.gz"
-```
+`.trim()}
+  lang="sh"
+/>
 
 Verify the checksums file with cosign:
 
@@ -60,7 +63,10 @@ sha256sum --check checksums.txt --ignore-missing
 
 Finally, extract the binary and move it to your PATH:
 
-```sh
-tar -xzf bumper_0.0.3_darwin_arm64.tar.gz
+<Code
+  code={`
+tar -xzf bumper_${__VERSION__}_darwin_arm64.tar.gz
 mv bumper /usr/local/bin/bumper
-```
+`.trim()}
+  lang="sh"
+/>
