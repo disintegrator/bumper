@@ -9,7 +9,7 @@ export MISE_TASK_OUTPUT=quiet
 
 export BUMPER_GROUP="bumper"
 
-BUMPER_GROUP_VERSION="$(mise run bumper latest)"
+BUMPER_GROUP_VERSION="$(mise run bumper current)"
 export BUMPER_GROUP_VERSION
 
 export GORELEASER_CURRENT_TAG=v"$BUMPER_GROUP_VERSION"

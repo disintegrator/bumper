@@ -59,7 +59,7 @@ jobs:
       - name: Get latest version
         id: bumper
         run: |
-          latest_version=$(mise bumper latest --group my-package)
+          latest_version=$(mise bumper current --group my-package)
           echo "latest_version=$latest_version" >> $GITHUB_OUTPUT
 
           if npm view "my-package@$latest_version" version &>/dev/null; then

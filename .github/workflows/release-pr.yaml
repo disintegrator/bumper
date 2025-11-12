@@ -48,7 +48,7 @@ jobs:
         run: |
           mise bumper commit
           notes_file="$(mktemp)"
-          bumper_version="$(mise bumper latest)"
+          bumper_version="$(mise bumper current)"
           echo "BUMPER_GROUP_VERSION=$bumper_version" >> $GITHUB_ENV
           echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV
           mise bumper cat --version "$bumper_version" > "$notes_file"

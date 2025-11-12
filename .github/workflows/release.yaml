@@ -50,7 +50,7 @@ jobs:
       - name: Set up env
         run: |
           notes_file="$(mktemp)"
-          bumper_version="$(mise bumper latest)"
+          bumper_version="$(mise bumper current)"
           echo "BUMPER_GROUP_VERSION=$bumper_version" >> $GITHUB_ENV
           echo "GORELEASER_CURRENT_TAG=v$bumper_version" >> $GITHUB_ENV
           echo "RELEASE_NOTES_FILE=$notes_file" >> $GITHUB_ENV

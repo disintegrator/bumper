@@ -37,7 +37,7 @@ jobs:
 
       - name: Read version and release note from Bumper
         run: |
-          bumper_version="$(mise bumper latest)"
+          bumper_version="$(mise bumper current)"
           echo "GORELEASER_CURRENT_TAG=v$bumper_version" >> $GITHUB_ENV
 
           notes_file="$(mktemp)"

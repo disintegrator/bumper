@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-There are two versioning commands that Bumper relies as part of the release process and to power command like `bumper latest` and `bumper commit`. Each release group must configure these:
+There are two versioning commands that Bumper relies as part of the release process and to power command like `bumper current` and `bumper commit`. Each release group must configure these:
 
 ```toml {"Version commands":6} {7,8}
 [[groups]]
@@ -24,7 +24,7 @@ This command is used to read the current version of a release group. It is calle
 
 - `BUMPER_GROUP`: The release group whose version is being requested
 
-It must only output the version string to standard output (`STDOUT`). For example, if your `current_cmd` is `["./get-current-version"]` and the user runs `bumper latest --group my-package`, the command will be called like this:
+It must only output the version string to standard output (`STDOUT`). For example, if your `current_cmd` is `["./get-current-version"]` and the user runs `bumper current --group my-package`, the command will be called like this:
 
 ```bash
 BUMPER_GROUP="my-package" ./get-current-version
@@ -132,7 +132,7 @@ For example, given the following:
 "my-package" = "1.2.3"
 ```
 
-When `bumper latest --group my-package` is called with this built-in command as the `current_cmd`, it will output `1.2.3`.
+When `bumper current --group my-package` is called with this built-in command as the `current_cmd`, it will output `1.2.3`.
 
 ### `bumper builtins current:file`
 
@@ -157,7 +157,7 @@ $ cat VERSION
 1.2.3
 ```
 
-Then running `bumper latest --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+Then running `bumper current --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
 
 ### `bumper builtins current:npm`
 
@@ -183,7 +183,7 @@ And a `package.json` file containing:
 }
 ```
 
-Then running `bumper latest --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+Then running `bumper current --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
 
 ## Custom commands
 

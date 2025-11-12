@@ -55,6 +55,6 @@ You can also omit the `--group` flag and pick it in the wizard when you run `bum
 When it comes to publish these packages, you would run:
 
 ```sh
-npm version -w @myorg/cli -w @myorg/sdk $(bumper latest --group tools)
+npm version -w @myorg/cli -w @myorg/sdk $(bumper current --group tools)
 npm publish -w @myorg/cli -w @myorg/sdk
 ```

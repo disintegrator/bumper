@@ -1,4 +1,4 @@
-package latest
+package current
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 
 func NewCommand(logger *slog.Logger) *cli.Command {
 	return &cli.Command{
-		Name:  "latest",
-		Usage: "Print the latest version of a release group",
+		Name:  "current",
+		Usage: "Print the current version of a release group",
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
 			&cli.StringFlag{

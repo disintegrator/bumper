@@ -10,7 +10,7 @@ async function generateCLIReferenceDocs() {
     ["create"],
     ["bump"],
     ["commit"],
-    ["latest"],
+    ["current"],
     ["cat"],
     ["builtins"],
     ["builtins", "current:default"],

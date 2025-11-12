@@ -47,7 +47,7 @@ jobs:
           # Build a nice release notes file to use as the PR description
           notes_file="$(mktemp)"
           for group in $groups; do
-            latest_version=$(mise bumper latest --group "$group")
+            latest_version=$(mise bumper current --group "$group")
             mise bumper cat --group "$group" --version "$latest_version" >> "$notes_file"
             echo "" >> "$notes_file"
           done
