@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -20,13 +21,13 @@ func isShallowRepo(repo *git.Repository) (bool, error) {
 	return len(shallows) > 0, nil
 }
 
-func deepenShallowRepo(repo *git.Repository, by int) error {
+func deepenShallowRepo(ctx context.Context, repo *git.Repository, by int) error {
 	remote, err := repo.Remote("origin")
 	if err != nil {
 		return fmt.Errorf("get origin remote: %w", err)
 	}
 
-	err = remote.Fetch(&git.FetchOptions{
+	err = remote.FetchContext(ctx, &git.FetchOptions{
 		Depth: by,
 		Force: true,
 	})
@@ -37,7 +38,7 @@ func deepenShallowRepo(repo *git.Repository, by int) error {
 	return nil
 }
 
-func openGitRepository(dir string) (*git.Repository, error) {
+func openGitRepository(ctx context.Context, dir string) (*git.Repository, error) {
 	repo, err := git.PlainOpenWithOptions(dir, &git.PlainOpenOptions{DetectDotGit: true})
 	switch {
 	case errors.Is(err, git.ErrRepositoryNotExists):
@@ -52,7 +53,7 @@ func openGitRepository(dir string) (*git.Repository, error) {
 	}
 
 	if isShallow {
-		if err := deepenShallowRepo(repo, 100); err != nil {
+		if err := deepenShallowRepo(ctx, repo, 100); err != nil {
 			return nil, fmt.Errorf("deepen shallow repo: %w", err)
 		}
 	}

@@ -34,7 +34,7 @@ type ReleaseGroupStatus struct {
 func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config) (map[string]*ReleaseGroupStatus, error) {
 	statuses := make(map[string]*ReleaseGroupStatus)
 
-	repo, err := openGitRepository(dir)
+	repo, err := openGitRepository(ctx, dir)
 	switch {
 	case errors.Is(err, errNoGitRepository):
 		logger.WarnContext(ctx, "git repository not found", slog.String("dir", dir))
