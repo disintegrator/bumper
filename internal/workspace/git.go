@@ -42,7 +42,7 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 				return nil, fmt.Errorf("get path relative to git root: %w", err)
 			}
 
-			commit, err := getFirstCommitWithParent(repo, relPath)
+			commit, err := getInitialCommitForFile(repo, relPath)
 			if err != nil {
 				return nil, fmt.Errorf("get first commit for %s: %w", relPath, err)
 			}
@@ -127,7 +127,7 @@ type vcsCommit struct {
 	When time.Time
 }
 
-func getFirstCommitWithParent(repo *git.Repository, gitFilename string) (*object.Commit, error) {
+func getInitialCommitForFile(repo *git.Repository, gitFilename string) (*object.Commit, error) {
 	ref, err := repo.Head()
 	if err != nil {
 		return nil, fmt.Errorf("get HEAD: %w", err)
