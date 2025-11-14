@@ -49,6 +49,11 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 
 			if commit == nil {
 				unresolved = append(unresolved, f)
+			} else {
+				info[f] = &vcsCommit{
+					SHA:  commit.Hash.String(),
+					When: commit.Committer.When,
+				}
 			}
 		}
 
@@ -62,7 +67,8 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 		}
 
 		if isShallow {
-			if err := deepenShallowRepo(ctx, gitRoot, 50); err != nil {
+			repo, err = deepenShallowRepo(ctx, gitRoot, 50)
+			if err != nil {
 				return nil, fmt.Errorf("deepen shallow repo: %w", err)
 			}
 		} else {
@@ -70,22 +76,6 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 		}
 	}
 
-	for _, f := range pending {
-		relPath, err := filepath.Rel(gitRoot, f)
-		if err != nil {
-			return nil, fmt.Errorf("get path relative to git root: %w", err)
-		}
-
-		commit, err := getFirstCommitWithParent(repo, relPath)
-		if err != nil {
-			return nil, fmt.Errorf("get first commit for %s: %w", f, err)
-		}
-
-		info[f] = &vcsCommit{
-			SHA:  commit.Hash.String(),
-			When: commit.Committer.When,
-		}
-	}
 	for _, f := range unresolved {
 		logger.WarnContext(ctx, "could not resolve git info for bump file", slog.String("file", f))
 		delete(info, f)
@@ -102,17 +92,22 @@ func isShallowRepo(repo *git.Repository) (bool, error) {
 	return len(shallows) > 0, nil
 }
 
-func deepenShallowRepo(ctx context.Context, gitdir string, by int) error {
+func deepenShallowRepo(ctx context.Context, gitdir string, by int) (*git.Repository, error) {
 	cmd := exec.CommandContext(ctx, "git", "fetch", "--deepen", fmt.Sprintf("%d", by))
 	cmd.Dir = gitdir
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git fetch --deepen %d: %w", by, err)
+		return nil, fmt.Errorf("git fetch --deepen %d: %w", by, err)
 	}
 
-	return nil
+	repo, err := openGitRepository(gitdir)
+	if err != nil {
+		return nil, fmt.Errorf("reopen git repository after deepen: %w", err)
+	}
+
+	return repo, nil
 }
 
 func openGitRepository(dir string) (*git.Repository, error) {
