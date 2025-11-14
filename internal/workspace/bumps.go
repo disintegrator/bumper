@@ -21,6 +21,7 @@ import (
 
 type LogEntry struct {
 	Timestamp int64
+	Commit    string
 	Content   string
 }
 
@@ -34,7 +35,7 @@ type ReleaseGroupStatus struct {
 func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config) (map[string]*ReleaseGroupStatus, error) {
 	statuses := make(map[string]*ReleaseGroupStatus)
 
-	repo, err := openGitRepository(ctx, dir)
+	repo, err := openGitRepository(dir)
 	switch {
 	case errors.Is(err, errNoGitRepository):
 		logger.WarnContext(ctx, "git repository not found", slog.String("dir", dir))
@@ -55,6 +56,11 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 
 	if len(matches) == 0 {
 		return statuses, nil
+	}
+
+	gitInfo, err := ResolveGitInfoForBumps(ctx, logger, repo, matches)
+	if err != nil {
+		return nil, fmt.Errorf("resolve git info for bumps: %w", err)
 	}
 
 	var itererr error
@@ -82,24 +88,13 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 			return false
 		}
 
-		timestamp := int64(0)
-		var commit *vcsCommit
-		if repo != nil {
-			commit, err = getFirstCommit(repo, match)
+		entry := LogEntry{Content: message, Timestamp: 0, Commit: ""}
+		gitItem, ok := gitInfo[match]
+		if ok {
+			entry.Timestamp = gitItem.When.UnixNano()
+			entry.Commit = gitItem.SHA[:min(7, len(gitItem.SHA))]
+			entry.Content = fmt.Sprintf("%s: %s", entry.Commit, entry.Content)
 		}
-		switch {
-		case err != nil:
-			logger.WarnContext(ctx, "failed to get initial commit SHA for bump file", slog.String("error", err.Error()), slog.String("file", match))
-		case commit == nil:
-			if repo != nil {
-				logger.WarnContext(ctx, "initial commit SHA for bump file not found", slog.String("file", match))
-			}
-		default:
-			timestamp = commit.When.Unix()
-			message = fmt.Sprintf("%s: %s", commit.SHA, message)
-		}
-
-		entry := LogEntry{Timestamp: timestamp, Content: message}
 
 		for groupName, level := range frontMatter {
 			if _, ok := highestBump[groupName]; !ok {
