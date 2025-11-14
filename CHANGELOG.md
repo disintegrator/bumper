@@ -1,5 +1,11 @@
 # Changelog
 
+## Bumper 0.0.6
+
+### Patch Changes
+
+- 7ecb5a4: Updated the commit command to gradually unshallow a git repo until the initial commit for each bump file is found. This ensures that the history of changes to these files is accurately tracked. This is a best effort approach and any bump files that cannot be resolved will be logged as warnings.
+
 ## Bumper 0.0.5
 
 ### Patch Changes
