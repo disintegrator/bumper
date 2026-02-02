@@ -39,28 +39,63 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 
 			cfgGroups := cfg.IndexReleaseGroups()
 
-			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg)
+			// Load prerelease state
+			prereleaseState, err := workspace.LoadPrereleaseState(dir)
+			if err != nil {
+				logger.ErrorContext(ctx, "failed to load prerelease state", slog.String("error", err.Error()))
+				return cmd.Failed(err)
+			}
+
+			// Collect pending bumps
+			pendingStatuses, err := workspace.CollectBumps(ctx, logger, dir, cfg)
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 
-			if err := workspace.DeleteBumps(ctx, dir); err != nil {
-				logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			if len(statuses) == 0 {
+			if len(pendingStatuses) == 0 {
 				logger.InfoContext(ctx, "no pending version bumps found", slog.String("dir", dir))
 				return nil
 			}
 
-			entries := lo.Entries(statuses)
+			// Collect accumulated prerelease bumps (for groups in prerelease)
+			accumulatedStatuses, err := workspace.CollectPrereleaseBumps(ctx, logger, dir, cfg)
+			if err != nil {
+				logger.ErrorContext(ctx, "failed to collect prerelease bumps", slog.String("error", err.Error()))
+				return cmd.Failed(err)
+			}
+
+			// Determine which groups have prerelease pending bumps
+			prereleaseGroups := make(map[string]bool)
+			stableGroups := make(map[string]bool)
+			for groupName := range pendingStatuses {
+				if prereleaseState.IsInPrerelease(groupName) {
+					prereleaseGroups[groupName] = true
+				} else {
+					stableGroups[groupName] = true
+				}
+			}
+
+			// Handle prerelease groups: move bump files to prerelease directory
+			if len(prereleaseGroups) > 0 {
+				if err := workspace.MoveBumpsToPrerelease(ctx, dir); err != nil {
+					logger.ErrorContext(ctx, "failed to move bump files to prerelease", slog.String("error", err.Error()))
+					return cmd.Failed(err)
+				}
+			} else {
+				// No prerelease groups, delete bump files as before
+				if err := workspace.DeleteBumps(ctx, dir); err != nil {
+					logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
+					return cmd.Failed(err)
+				}
+			}
+
+			entries := lo.Entries(pendingStatuses)
 			slices.SortStableFunc(entries, func(e1, e2 lo.Entry[string, *workspace.ReleaseGroupStatus]) int {
 				return strings.Compare(e1.Key, e2.Key)
 			})
 
-			committedGroups := make([]string, 0, len(statuses))
+			committedGroups := make([]string, 0, len(pendingStatuses))
 			for _, entry := range entries {
 				groupName, status := entry.Key, entry.Value
 
@@ -87,10 +122,41 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 					amendFlags = append(amendFlags, "--patch", entry.Content)
 				}
 
-				nextVersion, err := workspace.GetNextVersion(ctx, dir, g, status.Level)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
-					return cmd.Failed(err)
+				var nextVersion string
+
+				if prereleaseState.IsInPrerelease(groupName) {
+					// In prerelease mode - calculate prerelease version
+					groupPrereleaseState := prereleaseState.GetGroupState(groupName)
+
+					// Get accumulated level from prerelease bumps
+					accumulatedLevel := workspace.BumpLevelNone
+					if accStatus, ok := accumulatedStatuses[groupName]; ok {
+						accumulatedLevel = accStatus.Level
+					}
+
+					// Calculate prerelease version
+					var newCounter int
+					nextVersion, newCounter, err = workspace.CalculatePrereleaseVersion(
+						groupPrereleaseState.FromVersion,
+						groupPrereleaseState.Tag,
+						groupPrereleaseState.Counter,
+						accumulatedLevel,
+						status.Level,
+					)
+					if err != nil {
+						logger.ErrorContext(ctx, "failed to calculate prerelease version", slog.String("group", groupName), slog.String("error", err.Error()))
+						return cmd.Failed(err)
+					}
+
+					// Update counter in prerelease state
+					prereleaseState.SetCounter(groupName, newCounter)
+				} else {
+					// Not in prerelease mode - use regular version calculation
+					nextVersion, err = workspace.GetNextVersion(ctx, dir, g, status.Level)
+					if err != nil {
+						logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
+						return cmd.Failed(err)
+					}
 				}
 
 				err = commitVersionBump(ctx, dir, g, nextVersion)
@@ -106,6 +172,14 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				}
 
 				committedGroups = append(committedGroups, groupName)
+			}
+
+			// Save updated prerelease state if any groups were in prerelease
+			if len(prereleaseGroups) > 0 {
+				if err := workspace.SavePrereleaseState(dir, prereleaseState); err != nil {
+					logger.ErrorContext(ctx, "failed to save prerelease state", slog.String("error", err.Error()))
+					return cmd.Failed(err)
+				}
 			}
 
 			fmt.Println(strings.Join(committedGroups, "\n"))
