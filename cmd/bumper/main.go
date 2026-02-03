@@ -21,6 +21,7 @@ import (
 	"github.com/disintegrator/bumper/internal/commands/current"
 	"github.com/disintegrator/bumper/internal/commands/initialize"
 	"github.com/disintegrator/bumper/internal/commands/next"
+	"github.com/disintegrator/bumper/internal/commands/pre"
 	"github.com/disintegrator/bumper/internal/o11y"
 )
 
@@ -38,6 +39,7 @@ func newRootCommand(logger *slog.Logger) *cli.Command {
 			current.NewCommand(logger),
 			next.NewCommand(logger),
 			cat.NewCommand(logger),
+			pre.NewCommand(logger),
 			builtins.NewCommand(logger),
 		},
 	}

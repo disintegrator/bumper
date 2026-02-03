@@ -20,3 +20,15 @@ func VersionFilename(base string) string {
 func BumpFilename(base string, suffix string) string {
 	return filepath.Join(Dir(base), fmt.Sprintf("bump-%s.md", suffix))
 }
+
+func PrereleaseFilename(base string) string {
+	return filepath.Join(Dir(base), "prerelease.toml")
+}
+
+func PrereleaseBumpDir(base string) string {
+	return filepath.Join(Dir(base), "prerelease")
+}
+
+func PrereleaseBumpFilename(base string, suffix string) string {
+	return filepath.Join(PrereleaseBumpDir(base), fmt.Sprintf("bump-%s.md", suffix))
+}
