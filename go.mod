@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/go-git/go-git/v6 v6.0.0-20251103200709-47b1ed2930c9
-	github.com/goccy/go-yaml v1.19.0
+	github.com/goccy/go-yaml v1.19.2
 	github.com/samber/lo v1.52.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/urfave/cli/v3 v3.6.2
