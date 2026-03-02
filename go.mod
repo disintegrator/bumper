@@ -11,7 +11,7 @@ require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/samber/lo v1.52.0
 	github.com/tidwall/sjson v1.2.5
-	github.com/urfave/cli/v3 v3.6.2
+	github.com/urfave/cli/v3 v3.7.0
 )
 
 require (
