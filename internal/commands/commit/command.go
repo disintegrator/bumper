@@ -3,6 +3,7 @@ package commit
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"slices"
@@ -27,72 +28,94 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			if err != nil {
 				return err
 			}
-			dir := res.Dir
 
-			cfgGroups := res.Config.IndexReleaseGroups()
-
-			statuses, err := workspace.CollectBumps(ctx, logger, dir, res.Config, workspace.NewGitProvenance(logger, dir))
-			if err != nil {
-				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			if err := workspace.DeleteBumps(ctx, dir); err != nil {
-				logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			if len(statuses) == 0 {
-				logger.InfoContext(ctx, "no pending version bumps found", slog.String("dir", dir))
-				return nil
-			}
-
-			entries := lo.Entries(statuses)
-			slices.SortStableFunc(entries, func(e1, e2 lo.Entry[string, *workspace.ReleaseGroupStatus]) int {
-				return strings.Compare(e1.Key, e2.Key)
-			})
-
-			runner := workspace.ExecRunner{}
-			committedGroups := make([]string, 0, len(statuses))
-			for _, entry := range entries {
-				groupName, status := entry.Key, entry.Value
-
-				g, ok := cfgGroups[groupName]
-				if !ok {
-					logger.WarnContext(ctx, "skipping commit for unknown group", slog.String("group", groupName))
-					continue
-				}
-
-				if status.Level == 0 {
-					continue
-				}
-
-				nextVersion, err := workspace.GetNextVersion(ctx, runner, dir, g, status.Level)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
-					return cmd.Failed(err)
-				}
-
-				err = commitVersionBump(ctx, runner, dir, g, nextVersion)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to commit version bump", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
-					return cmd.Failed(err)
-				}
-
-				err = commitChangelog(ctx, runner, dir, g, nextVersion, status)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to commit changelog", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
-					return cmd.Failed(err)
-				}
-
-				committedGroups = append(committedGroups, groupName)
-			}
-
-			fmt.Println(strings.Join(committedGroups, "\n"))
-
-			return nil
+			return run(ctx, logger, workspace.ExecRunner{}, workspace.NewGitProvenance(logger, res.Dir), res.Dir, res.Config, os.Stdout)
 		},
 	}
+}
+
+// run commits all pending bumps. Bump files are the release intent: they are
+// deleted only once every release group's version and changelog commands have
+// succeeded, so a failure partway through leaves the workspace recoverable.
+func run(
+	ctx context.Context,
+	logger *slog.Logger,
+	runner workspace.Runner,
+	provenance workspace.Provenance,
+	dir string,
+	cfg *workspace.Config,
+	stdout io.Writer,
+) error {
+	cfgGroups := cfg.IndexReleaseGroups()
+
+	statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg, provenance)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
+		return cmd.Failed(err)
+	}
+
+	if len(statuses) == 0 {
+		logger.InfoContext(ctx, "no pending version bumps found", slog.String("dir", dir))
+
+		// Nothing to release, so bump files present here carry no release
+		// intent (empty or unknown-group ones) and are safe to clean up.
+		if err := workspace.DeleteBumps(ctx, dir); err != nil {
+			logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
+			return cmd.Failed(err)
+		}
+
+		return nil
+	}
+
+	entries := lo.Entries(statuses)
+	slices.SortStableFunc(entries, func(e1, e2 lo.Entry[string, *workspace.ReleaseGroupStatus]) int {
+		return strings.Compare(e1.Key, e2.Key)
+	})
+
+	committedGroups := make([]string, 0, len(statuses))
+	for _, entry := range entries {
+		groupName, status := entry.Key, entry.Value
+
+		g, ok := cfgGroups[groupName]
+		if !ok {
+			logger.WarnContext(ctx, "skipping commit for unknown group", slog.String("group", groupName))
+			continue
+		}
+
+		if status.Level == 0 {
+			continue
+		}
+
+		nextVersion, err := workspace.GetNextVersion(ctx, runner, dir, g, status.Level)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
+			return cmd.Failed(fmt.Errorf("release group %s: %w", groupName, err))
+		}
+
+		err = commitVersionBump(ctx, runner, dir, g, nextVersion)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to commit version bump", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
+			return cmd.Failed(fmt.Errorf("release group %s: %w", groupName, err))
+		}
+
+		err = commitChangelog(ctx, runner, dir, g, nextVersion, status)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to commit changelog", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
+			return cmd.Failed(fmt.Errorf("release group %s: %w", groupName, err))
+		}
+
+		committedGroups = append(committedGroups, groupName)
+	}
+
+	// Every group's commands succeeded; the release intent is consumed.
+	if err := workspace.DeleteBumps(ctx, dir); err != nil {
+		logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
+		return cmd.Failed(err)
+	}
+
+	fmt.Fprintln(stdout, strings.Join(committedGroups, "\n"))
+
+	return nil
 }
 
 func commitVersionBump(ctx context.Context, runner workspace.Runner, dir string, group workspace.ReleaseGroup, versionStr string) error {
