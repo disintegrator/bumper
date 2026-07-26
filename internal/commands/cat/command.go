@@ -3,10 +3,8 @@ package cat
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/disintegrator/bumper/internal/cmd"
@@ -64,24 +62,14 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			if len(group.CatCMD) == 0 {
+			inv, err := workspace.NewCatInvocation(group, c.String("version"))
+			if err != nil {
 				logger.ErrorContext(ctx, "no cat command defined for group", slog.String("group", groupName))
 				return cmd.Failed(err)
 			}
 
-			program := group.CatCMD[0]
-			args := group.CatCMD[1:]
-			catcmd := exec.CommandContext(ctx, program, args...)
-			catcmd.Dir = dir
-			catcmd.Env = append(
-				os.Environ(),
-				fmt.Sprintf("BUMPER_GROUP=%s", groupName),
-				fmt.Sprintf("BUMPER_GROUP_VERSION=%s", c.String("version")),
-			)
-			catcmd.Stdout = os.Stdout
-			catcmd.Stderr = os.Stderr
-
-			if err := catcmd.Run(); err != nil {
+			runner := workspace.ExecRunner{}
+			if err := runner.Run(ctx, dir, inv, os.Stdout); err != nil {
 				logger.ErrorContext(ctx, "failed to execute cat command", slog.String("error", err.Error()), slog.String("command", strings.Join(group.CatCMD, " ")))
 				return cmd.Failed(err)
 			}
