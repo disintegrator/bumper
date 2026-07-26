@@ -67,7 +67,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return nil
 			}
 
-			nextVersion, err := workspace.GetNextVersion(ctx, dir, group, status.Level)
+			nextVersion, err := workspace.GetNextVersion(ctx, workspace.ExecRunner{}, dir, group, status.Level)
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
 				return cmd.Failed(err)

@@ -55,7 +55,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			currentVersion, err := workspace.GetCurrentVersion(ctx, dir, group)
+			currentVersion, err := workspace.GetCurrentVersion(ctx, workspace.ExecRunner{}, dir, group)
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to get current version", slog.String("group", groupName), slog.String("error", err.Error()))
 				return cmd.Failed(err)

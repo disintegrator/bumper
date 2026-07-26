@@ -2,11 +2,9 @@ package commit
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 
@@ -60,6 +58,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return strings.Compare(e1.Key, e2.Key)
 			})
 
+			runner := workspace.ExecRunner{}
 			committedGroups := make([]string, 0, len(statuses))
 			for _, entry := range entries {
 				groupName, status := entry.Key, entry.Value
@@ -74,32 +73,19 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 					continue
 				}
 
-				amendFlags := make([]string, 0, len(status.MajorLogs)+len(status.MinorLogs)+len(status.PatchLogs)+2)
-				amendFlags = append(amendFlags, "--group", groupName)
-
-				for _, entry := range status.MajorLogs {
-					amendFlags = append(amendFlags, "--major", entry.Content)
-				}
-				for _, entry := range status.MinorLogs {
-					amendFlags = append(amendFlags, "--minor", entry.Content)
-				}
-				for _, entry := range status.PatchLogs {
-					amendFlags = append(amendFlags, "--patch", entry.Content)
-				}
-
-				nextVersion, err := workspace.GetNextVersion(ctx, dir, g, status.Level)
+				nextVersion, err := workspace.GetNextVersion(ctx, runner, dir, g, status.Level)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
 					return cmd.Failed(err)
 				}
 
-				err = commitVersionBump(ctx, dir, g, nextVersion)
+				err = commitVersionBump(ctx, runner, dir, g, nextVersion)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to commit version bump", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
 					return cmd.Failed(err)
 				}
 
-				err = commitChangelog(ctx, dir, g, nextVersion, amendFlags)
+				err = commitChangelog(ctx, runner, dir, g, nextVersion, status)
 				if err != nil {
 					logger.ErrorContext(ctx, "failed to commit changelog", slog.String("group", groupName), slog.String("version", nextVersion), slog.String("error", err.Error()))
 					return cmd.Failed(err)
@@ -115,46 +101,26 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 	}
 }
 
-func commitVersionBump(ctx context.Context, dir string, group workspace.ReleaseGroup, versionStr string) error {
-	if len(group.NextCMD) == 0 {
-		return errors.New("no next version command defined for release group")
+func commitVersionBump(ctx context.Context, runner workspace.Runner, dir string, group workspace.ReleaseGroup, versionStr string) error {
+	inv, err := workspace.NewNextInvocation(group, versionStr)
+	if err != nil {
+		return err
 	}
 
-	nextProg := group.NextCMD[0]
-	nextArgs := group.NextCMD[1:]
-	cmd := exec.CommandContext(ctx, nextProg, nextArgs...)
-	cmd.Dir = dir
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
-		fmt.Sprintf("BUMPER_GROUP_NEXT_VERSION=%s", versionStr),
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := runner.Run(ctx, dir, inv, os.Stdout); err != nil {
 		return fmt.Errorf("execute next version command: %w", err)
 	}
 
 	return nil
 }
 
-func commitChangelog(ctx context.Context, dir string, group workspace.ReleaseGroup, versionStr string, flags []string) error {
-	if len(group.ChangelogCMD) == 0 {
-		return errors.New("no changelog command defined for release group")
+func commitChangelog(ctx context.Context, runner workspace.Runner, dir string, group workspace.ReleaseGroup, versionStr string, status *workspace.ReleaseGroupStatus) error {
+	inv, err := workspace.NewChangelogInvocation(group, versionStr, status)
+	if err != nil {
+		return err
 	}
 
-	changelogProg := group.ChangelogCMD[0]
-	changelogArgs := append(group.ChangelogCMD[1:], flags...)
-	cmd := exec.CommandContext(ctx, changelogProg, changelogArgs...)
-	cmd.Dir = dir
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
-		fmt.Sprintf("BUMPER_GROUP_NEXT_VERSION=%s", versionStr),
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
+	if err := runner.Run(ctx, dir, inv, os.Stdout); err != nil {
 		return fmt.Errorf("execute amend changelog command: %w", err)
 	}
 

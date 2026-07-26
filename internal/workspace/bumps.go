@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -202,24 +201,14 @@ func extractFrontMatter(content string, dst any) (string, error) {
 	return strings.TrimSpace(rest.String()), nil
 }
 
-func GetCurrentVersion(ctx context.Context, dir string, group ReleaseGroup) (*semver.Version, error) {
-	if len(group.CurrentCMD) == 0 {
-		return nil, errors.New("no current version command defined for release group")
+func GetCurrentVersion(ctx context.Context, runner Runner, dir string, group ReleaseGroup) (*semver.Version, error) {
+	inv, err := NewCurrentInvocation(group)
+	if err != nil {
+		return nil, err
 	}
 
-	currentProg := group.CurrentCMD[0]
-	currentArgs := group.CurrentCMD[1:]
-	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
 	stdout := new(bytes.Buffer)
-	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
-	)
-
-	if err := cmd.Run(); err != nil {
+	if err := runner.Run(ctx, dir, inv, stdout); err != nil {
 		return nil, fmt.Errorf("execute current version command: %w", err)
 	}
 
@@ -232,31 +221,10 @@ func GetCurrentVersion(ctx context.Context, dir string, group ReleaseGroup) (*se
 	return currentSemver, nil
 }
 
-func GetNextVersion(ctx context.Context, dir string, group ReleaseGroup, level BumpLevel) (string, error) {
-	if len(group.CurrentCMD) == 0 {
-		return "", errors.New("no current version command defined for release group")
-	}
-
-	currentProg := group.CurrentCMD[0]
-	currentArgs := group.CurrentCMD[1:]
-	cmd := exec.CommandContext(ctx, currentProg, currentArgs...)
-	stdout := new(bytes.Buffer)
-	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = os.Stderr
-	cmd.Env = append(
-		os.Environ(),
-		fmt.Sprintf("BUMPER_GROUP=%s", group.Name),
-	)
-
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("execute current version command: %w", err)
-	}
-
-	currentVersionStr := strings.TrimSpace(stdout.String())
-	currentSemver, err := semver.NewVersion(currentVersionStr)
+func GetNextVersion(ctx context.Context, runner Runner, dir string, group ReleaseGroup, level BumpLevel) (string, error) {
+	currentSemver, err := GetCurrentVersion(ctx, runner, dir, group)
 	if err != nil {
-		return "", fmt.Errorf("%s: parse current version string: %w", currentVersionStr, err)
+		return "", err
 	}
 
 	switch level {
