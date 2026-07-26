@@ -51,19 +51,19 @@ export default defineConfig({
                 },
                 {
                     label: 'Guides',
-                    autogenerate: { directory: 'guides' },
+                    items: [{ autogenerate: { directory: 'guides' } }],
                 },
                 {
                     label: 'CI/CD Integrations',
-                    autogenerate: { directory: 'ci-cd' },
+                    items: [{ autogenerate: { directory: 'ci-cd' } }],
                 },
                 {
                     label: 'Configuration',
-                    autogenerate: { directory: 'configuration' },
+                    items: [{ autogenerate: { directory: 'configuration' } }],
                 },
                 {
                     label: 'Reference',
-                    autogenerate: { directory: 'reference' },
+                    items: [{ autogenerate: { directory: 'reference' } }],
                 },
                 ...cliSidebar,
                 {
