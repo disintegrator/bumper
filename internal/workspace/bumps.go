@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/goccy/go-yaml"
-	"github.com/samber/lo"
 )
 
 type LogEntry struct {
@@ -31,14 +29,30 @@ type ReleaseGroupStatus struct {
 	PatchLogs []LogEntry
 }
 
-func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config, provenance Provenance) (map[string]*ReleaseGroupStatus, error) {
-	statuses := make(map[string]*ReleaseGroupStatus)
+// ParsedBump is one bump file's parsed content plus its provenance: the
+// levels recorded per release group, the changelog message, and the commit
+// that introduced the file (nil when unresolved).
+type ParsedBump struct {
+	File    string
+	Levels  map[string]string
+	Message string
+	Commit  *Commit
+}
 
-	highestBump := make(map[string]BumpLevel)
-	for _, g := range cfg.Groups {
-		highestBump[g.Name] = BumpLevelNone
+// CollectBumps composes GatherBumps and SquashBumps: it reads the pending
+// bump files in dir and reduces them to per-group release status.
+func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config, provenance Provenance) (map[string]*ReleaseGroupStatus, error) {
+	bumps, err := GatherBumps(ctx, logger, dir, provenance)
+	if err != nil {
+		return nil, err
 	}
 
+	return SquashBumps(ctx, logger, bumps, cfg), nil
+}
+
+// GatherBumps globs the pending bump files in dir, parses each file's front
+// matter and message, and resolves the commit that introduced it.
+func GatherBumps(ctx context.Context, logger *slog.Logger, dir string, provenance Provenance) ([]ParsedBump, error) {
 	pattern := BumpFilename(dir, "*")
 	matches, err := filepath.Glob(pattern)
 	if err != nil {
@@ -46,7 +60,7 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 	}
 
 	if len(matches) == 0 {
-		return statuses, nil
+		return nil, nil
 	}
 
 	gitInfo, err := provenance.Resolve(ctx, matches)
@@ -54,42 +68,52 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 		return nil, fmt.Errorf("resolve git info for bumps: %w", err)
 	}
 
-	var itererr error
-	lo.ForEachWhile(matches, func(match string, _ int) bool {
-		f, err := os.Open(match)
-		if err != nil {
-			logger.ErrorContext(ctx, "failed to open bump file", slog.String("file", match), slog.String("error", err.Error()))
-			itererr = err
-			return false
-		}
-		defer f.Close()
-
-		content, err := io.ReadAll(f)
+	bumps := make([]ParsedBump, 0, len(matches))
+	for _, match := range matches {
+		content, err := os.ReadFile(match)
 		if err != nil {
 			logger.ErrorContext(ctx, "failed to read bump file", slog.String("file", match), slog.String("error", err.Error()))
-			itererr = err
-			return false
+			return nil, fmt.Errorf("process bump files: %w", err)
 		}
 
-		frontMatter := make(map[string]string)
-		message, err := extractFrontMatter(string(content), &frontMatter)
+		levels := make(map[string]string)
+		message, err := extractFrontMatter(string(content), &levels)
 		if err != nil {
 			logger.ErrorContext(ctx, "failed to extract front matter", slog.String("file", match), slog.String("error", err.Error()))
-			itererr = err
-			return false
+			return nil, fmt.Errorf("process bump files: %w", err)
 		}
 
-		entry := LogEntry{Content: message, Timestamp: 0, Commit: ""}
-		gitItem, ok := gitInfo[match]
-		if ok {
-			entry.Timestamp = gitItem.When.UnixNano()
-			entry.Commit = gitItem.SHA[:min(7, len(gitItem.SHA))]
+		bump := ParsedBump{File: match, Levels: levels, Message: message}
+		if commit, ok := gitInfo[match]; ok {
+			bump.Commit = &commit
+		}
+
+		bumps = append(bumps, bump)
+	}
+
+	return bumps, nil
+}
+
+// SquashBumps reduces parsed bump files to per-group release status: the
+// highest bump level wins per group and changelog entries are ordered by
+// commit timestamp. Bumps for groups absent from cfg and entries with unknown
+// levels are skipped with a warning. It touches neither disk nor git.
+func SquashBumps(ctx context.Context, logger *slog.Logger, bumps []ParsedBump, cfg *Config) map[string]*ReleaseGroupStatus {
+	statuses := make(map[string]*ReleaseGroupStatus)
+
+	knownGroups := cfg.IndexReleaseGroups()
+
+	for _, bump := range bumps {
+		entry := LogEntry{Content: bump.Message, Timestamp: 0, Commit: ""}
+		if bump.Commit != nil {
+			entry.Timestamp = bump.Commit.When.UnixNano()
+			entry.Commit = bump.Commit.SHA[:min(7, len(bump.Commit.SHA))]
 			entry.Content = fmt.Sprintf("%s: %s", entry.Commit, entry.Content)
 		}
 
-		for groupName, level := range frontMatter {
-			if _, ok := highestBump[groupName]; !ok {
-				logger.WarnContext(ctx, "skipping bump for unknown group", slog.String("file", match), slog.String("group", groupName))
+		for groupName, level := range bump.Levels {
+			if _, ok := knownGroups[groupName]; !ok {
+				logger.WarnContext(ctx, "skipping bump for unknown group", slog.String("file", bump.File), slog.String("group", groupName))
 				continue
 			}
 
@@ -113,14 +137,9 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 				statuses[groupName].Level = max(statuses[groupName].Level, BumpLevelPatch)
 				statuses[groupName].PatchLogs = append(statuses[groupName].PatchLogs, entry)
 			default:
-				logger.WarnContext(ctx, "unknown level in bump file front matter", slog.String("file", match), slog.String("group", groupName), slog.String("level", level))
+				logger.WarnContext(ctx, "unknown level in bump file front matter", slog.String("file", bump.File), slog.String("group", groupName), slog.String("level", level))
 			}
 		}
-
-		return true
-	})
-	if itererr != nil {
-		return nil, fmt.Errorf("process bump files: %w", itererr)
 	}
 
 	for _, status := range statuses {
@@ -135,7 +154,7 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 		})
 	}
 
-	return statuses, nil
+	return statuses
 }
 
 func DeleteBumps(ctx context.Context, dir string) error {
@@ -159,23 +178,28 @@ func DeleteBumps(ctx context.Context, dir string) error {
 	return nil
 }
 
+// extractFrontMatter splits a bump file into its YAML front matter (decoded
+// into dst) and the markdown message that follows. It accepts both LF and
+// CRLF line endings and files without a trailing newline.
 func extractFrontMatter(content string, dst any) (string, error) {
 	state := "initial"
 	fm := ""
 	var rest strings.Builder
 	for line := range strings.Lines(content) {
+		trimmed := strings.TrimRight(line, "\r\n")
 		switch {
 		case state == "initial":
-			if line != "---\n" {
+			if trimmed != "---" {
 				return "", errors.New("front matter must start with ---")
 			}
 			state = "frontmatter"
-		case state == "frontmatter" && line == "---\n":
+		case state == "frontmatter" && trimmed == "---":
 			state = "slurping"
 		case state == "frontmatter":
-			fm += line
+			fm += trimmed + "\n"
 		case state == "slurping":
-			rest.WriteString(line)
+			rest.WriteString(trimmed)
+			rest.WriteByte('\n')
 		default:
 			return "", errors.New("invalid front matter parse state")
 		}
