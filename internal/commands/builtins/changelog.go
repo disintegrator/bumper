@@ -1,20 +1,40 @@
 package builtins
 
 import (
-	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
+	"github.com/disintegrator/bumper/internal/changelog"
 	"github.com/disintegrator/bumper/internal/cmd"
 	"github.com/disintegrator/bumper/internal/commands/shared"
 	"github.com/disintegrator/bumper/internal/workspace"
 	"github.com/urfave/cli/v3"
 )
+
+// newChangelogPathFlag returns the --path flag shared by the default
+// changelog commands. It carries no static default: both commands fall back
+// to CHANGELOG.md in the workspace root, which is only known after the
+// workspace is resolved.
+func newChangelogPathFlag() *cli.StringFlag {
+	return &cli.StringFlag{
+		Name:      "path",
+		Usage:     "The path to the changelog file (defaults to CHANGELOG.md in the workspace root)",
+		Sources:   cli.EnvVars("BUMPER_CHANGELOG_PATH"),
+		TakesFile: true,
+	}
+}
+
+func changelogPath(c *cli.Command, workspaceDir string) string {
+	if path := c.String("path"); path != "" {
+		return path
+	}
+	return filepath.Join(workspaceDir, "CHANGELOG.md")
+}
 
 func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 	return &cli.Command{
@@ -23,12 +43,7 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 		DisableSliceFlagSeparator: true,
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
-			&cli.StringFlag{
-				Name:      "path",
-				Usage:     "The path to the changelog file",
-				Sources:   cli.EnvVars("BUMPER_CHANGELOG_PATH"),
-				TakesFile: true,
-			},
+			newChangelogPathFlag(),
 			releaseGroupFlag,
 			nextVersionFlag,
 			&cli.StringSliceFlag{
@@ -46,15 +61,10 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			groupName := releaseGroup(c)
-			versionStr := nextVersion(c)
-			major := c.StringSlice("major")
-			minor := c.StringSlice("minor")
-			patch := c.StringSlice("patch")
 			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
-			dir := res.Dir
 
 			displayName := groupName
 			group, ok := res.Config.IndexReleaseGroups()[groupName]
@@ -63,16 +73,19 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 					displayName = group.DisplayName
 				}
 			} else {
-				logger.WarnContext(ctx, "release group not in config", slog.String("group", groupName), slog.String("config", workspace.ConfigFilename(dir)))
+				logger.WarnContext(ctx, "release group not in config", slog.String("group", groupName), slog.String("config", workspace.ConfigFilename(res.Dir)))
 			}
 
-			filename := c.String("path")
-			if filename == "" {
-				filename = filepath.Join(dir, "CHANGELOG.md")
+			filename := changelogPath(c, res.Dir)
+			release := changelog.Release{
+				DisplayName: displayName,
+				Version:     nextVersion(c),
+				Major:       c.StringSlice("major"),
+				Minor:       c.StringSlice("minor"),
+				Patch:       c.StringSlice("patch"),
 			}
 
-			err = amendChangelog(filename, displayName, versionStr, major, minor, patch)
-			if err != nil {
+			if err := amendChangelogFile(filename, release); err != nil {
 				logger.ErrorContext(ctx, "failed to amend changelog", slog.String("file", filename), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
@@ -82,111 +95,24 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 	}
 }
 
-func amendChangelog(
-	filename string,
-	displayName string,
-	versionStr string,
-	major []string,
-	minor []string,
-	patch []string,
-) error {
-	insertion := fmt.Sprintf("## %s %s\n\n", displayName, versionStr)
-	if len(major) > 0 {
-		insertion += "### Major Changes\n\n"
-		for _, entry := range major {
-			insertion += formatEntry(entry)
-		}
-		insertion += "\n"
-	}
-	if len(minor) > 0 {
-		insertion += "### Minor Changes\n\n"
-		for _, entry := range minor {
-			insertion += formatEntry(entry)
-		}
-		insertion += "\n"
-	}
-	if len(patch) > 0 {
-		insertion += "### Patch Changes\n\n"
-		for _, entry := range patch {
-			insertion += formatEntry(entry)
-		}
-		insertion += "\n"
-	}
-
-	insertion = strings.TrimSpace(insertion)
-
-	file, err := os.OpenFile(filename, os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return fmt.Errorf("open changelog file: %w", err)
-	}
-	defer file.Close()
-
-	// Check if file is empty and initialize if needed
-	info, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("stat changelog file: %w", err)
-	}
-
-	if info.Size() == 0 {
-		if _, err := file.WriteString("# Changelog"); err != nil {
-			return fmt.Errorf("initialize changelog file: %w", err)
-		}
-		if _, err := file.Seek(0, 0); err != nil {
-			return fmt.Errorf("reset initial changelog reader: %w", err)
-		}
-	}
-
-	scanner := bufio.NewScanner(file)
-	var lines []string
-	inserted := false
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		lines = append(lines, line)
-
-		if !inserted && strings.HasPrefix(line, "# Changelog") {
-			lines = append(lines, "", insertion)
-			inserted = true
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
+// amendChangelogFile opens the changelog for the stream-based amendment,
+// treating a missing file as an empty changelog.
+func amendChangelogFile(filename string, release changelog.Release) error {
+	content, err := os.ReadFile(filename)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("read changelog file: %w", err)
 	}
 
-	if err := file.Truncate(0); err != nil {
-		return fmt.Errorf("truncate changelog file: %w", err)
-	}
-	if _, err := file.Seek(0, 0); err != nil {
-		return fmt.Errorf("seek to start: %w", err)
+	var amended bytes.Buffer
+	if err := changelog.Amend(&amended, bytes.NewReader(content), release); err != nil {
+		return err
 	}
 
-	writer := bufio.NewWriter(file)
-	for _, line := range lines {
-		if _, err := writer.WriteString(line); err != nil {
-			return fmt.Errorf("write changelog file: %w", err)
-		}
-		if err := writer.WriteByte('\n'); err != nil {
-			return fmt.Errorf("write changelog file: %w", err)
-		}
-	}
-
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("flush changelog file: %w", err)
+	if err := os.WriteFile(filename, amended.Bytes(), 0644); err != nil {
+		return fmt.Errorf("write changelog file: %w", err)
 	}
 
 	return nil
-}
-
-func formatEntry(entry string) string {
-	if entry == "" {
-		return ""
-	}
-
-	entry = "- " + strings.ReplaceAll(entry, "\n", "\n  ")
-	entry = regexp.MustCompile(`(?m)^\s+$`).ReplaceAllString(entry, "")
-
-	return entry + "\n"
 }
 
 func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
@@ -195,18 +121,11 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 		Usage: "Get the release notes of a release group using the default strategy",
 		Flags: []cli.Flag{
 			shared.NewDirFlag(),
-			&cli.StringFlag{
-				Name:      "path",
-				Usage:     "The path to the changelog file",
-				Value:     "CHANGELOG.md",
-				Sources:   cli.EnvVars("BUMPER_CHANGELOG_PATH"),
-				TakesFile: true,
-			},
+			newChangelogPathFlag(),
 			releaseGroupFlag,
 			versionFlag,
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			logfile := c.String("path")
 			groupName := releaseGroup(c)
 			versionStr := version(c)
 			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
@@ -219,7 +138,20 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 				return err
 			}
 
-			result, err := changelogForGroup(group, logfile, versionStr)
+			displayName := group.Name
+			if group.DisplayName != "" {
+				displayName = group.DisplayName
+			}
+
+			logfile := changelogPath(c, res.Dir)
+			file, err := os.Open(logfile)
+			if err != nil {
+				logger.ErrorContext(ctx, "failed to open changelog", slog.String("file", logfile), slog.String("error", err.Error()))
+				return cmd.Failed(err)
+			}
+			defer file.Close()
+
+			result, err := changelog.Section(file, displayName, versionStr)
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to get changelog for group", slog.String("group", groupName), slog.String("version", versionStr), slog.String("error", err.Error()))
 				return cmd.Failed(err)
@@ -234,50 +166,4 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 			return nil
 		},
 	}
-}
-
-func changelogForGroup(group workspace.ReleaseGroup, logfile string, versionStr string) (string, error) {
-	displayName := group.Name
-	if group.DisplayName != "" {
-		displayName = group.DisplayName
-	}
-
-	file, err := os.Open(logfile)
-	if err != nil {
-		return "", fmt.Errorf("open changelog: %w", err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	state := "search"
-	var output strings.Builder
-
-scanloop:
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		switch state {
-		case "search":
-			if strings.HasPrefix(line, fmt.Sprintf("## %s %s", displayName, versionStr)) {
-				state = "collect"
-				output.WriteString(line)
-				output.WriteByte('\n')
-			}
-		case "collect":
-			if strings.HasPrefix(line, "## ") {
-				break scanloop
-			} else {
-				output.WriteString(line)
-				output.WriteByte('\n')
-			}
-		default:
-			panic("unreachable state")
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("read changelog: %w", err)
-	}
-
-	return strings.TrimSpace(output.String()), nil
 }
