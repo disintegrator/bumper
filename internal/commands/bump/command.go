@@ -138,6 +138,14 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				bumpOpts.groups = []string{cfg.Groups[0].Name}
 			}
 
+			// huh opens a TTY before evaluating hide functions, so a fully
+			// flag-driven invocation must bypass the form to work in
+			// non-interactive environments.
+			needsPrompt := len(bumpOpts.groups) == 0 || levelFlag == "" || strings.TrimSpace(messageFlag) == ""
+			if !needsPrompt {
+				return writeBumpFile(ctx, logger, dir, bumpOpts)
+			}
+
 			err = huh.NewForm(
 				huh.NewGroup(
 					huh.NewMultiSelect[string]().
@@ -189,52 +197,56 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return cmd.Failed(err)
 			}
 
-			bumps := make(map[string]string)
-			for _, groupName := range bumpOpts.groups {
-				bumps[groupName] = bumpOpts.level
-			}
-			ymlbs, err := yaml.Marshal(bumps)
-			if err != nil {
-				logger.ErrorContext(ctx, "failed to marshal bumps to frontmatter", slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			fm := string(ymlbs)
-
-			content := fmt.Sprintf("---\n%s---\n\n%s\n", fm, bumpOpts.message)
-
-			var existsErr error
-			for range 3 {
-				existsErr = nil
-				filename := workspace.BumpFilename(dir, random.GetRandomName())
-				fmt.Println("Creating bump file:", filename)
-				f, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
-				switch {
-				case errors.Is(err, os.ErrExist):
-					existsErr = err
-					continue
-				case err != nil:
-					logger.ErrorContext(ctx, "failed to create bump file", slog.String("error", err.Error()))
-					return cmd.Failed(err)
-				}
-				defer f.Close()
-
-				_, err = f.WriteString(content)
-				if err != nil {
-					logger.ErrorContext(ctx, "failed to write bump file", slog.String("error", err.Error()))
-					return cmd.Failed(err)
-				}
-
-				logger.InfoContext(ctx, "Bump file created successfully", slog.String("file", filename))
-
-				break
-			}
-			if existsErr != nil {
-				logger.ErrorContext(ctx, "failed to create bump file after several attempts", slog.String("error", existsErr.Error()))
-				return cmd.Failed(err)
-			}
-
-			return nil
+			return writeBumpFile(ctx, logger, dir, bumpOpts)
 		},
 	}
+}
+
+func writeBumpFile(ctx context.Context, logger *slog.Logger, dir string, bumpOpts *bumpOptions) error {
+	bumps := make(map[string]string)
+	for _, groupName := range bumpOpts.groups {
+		bumps[groupName] = bumpOpts.level
+	}
+	ymlbs, err := yaml.Marshal(bumps)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to marshal bumps to frontmatter", slog.String("error", err.Error()))
+		return cmd.Failed(err)
+	}
+
+	fm := string(ymlbs)
+
+	content := fmt.Sprintf("---\n%s---\n\n%s\n", fm, bumpOpts.message)
+
+	var existsErr error
+	for range 3 {
+		existsErr = nil
+		filename := workspace.BumpFilename(dir, random.GetRandomName())
+		fmt.Println("Creating bump file:", filename)
+		f, err := os.OpenFile(filename, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		switch {
+		case errors.Is(err, os.ErrExist):
+			existsErr = err
+			continue
+		case err != nil:
+			logger.ErrorContext(ctx, "failed to create bump file", slog.String("error", err.Error()))
+			return cmd.Failed(err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString(content)
+		if err != nil {
+			logger.ErrorContext(ctx, "failed to write bump file", slog.String("error", err.Error()))
+			return cmd.Failed(err)
+		}
+
+		logger.InfoContext(ctx, "Bump file created successfully", slog.String("file", filename))
+
+		break
+	}
+	if existsErr != nil {
+		logger.ErrorContext(ctx, "failed to create bump file after several attempts", slog.String("error", existsErr.Error()))
+		return cmd.Failed(existsErr)
+	}
+
+	return nil
 }
