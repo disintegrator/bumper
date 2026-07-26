@@ -170,7 +170,10 @@ func amendChangelog(
 
 	writer := bufio.NewWriter(file)
 	for _, line := range lines {
-		if _, err := writer.WriteString(line + "\n"); err != nil {
+		if _, err := writer.WriteString(line); err != nil {
+			return fmt.Errorf("write changelog file: %w", err)
+		}
+		if err := writer.WriteByte('\n'); err != nil {
 			return fmt.Errorf("write changelog file: %w", err)
 		}
 	}
@@ -272,13 +275,15 @@ scanloop:
 		case "search":
 			if strings.HasPrefix(line, fmt.Sprintf("## %s %s", displayName, versionStr)) {
 				state = "collect"
-				output.WriteString(line + "\n")
+				output.WriteString(line)
+				output.WriteByte('\n')
 			}
 		case "collect":
 			if strings.HasPrefix(line, "## ") {
 				break scanloop
 			} else {
-				output.WriteString(line + "\n")
+				output.WriteString(line)
+				output.WriteByte('\n')
 			}
 		default:
 			panic("unreachable state")

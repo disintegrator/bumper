@@ -76,11 +76,14 @@ func (e *InvalidConfigError) Error() string {
 	builder.WriteString("Invalid workspace configuration:\n")
 
 	for _, ge := range e.globalErrors {
-		builder.WriteString("  - " + ge.Error() + "\n")
+		builder.WriteString("  - ")
+		builder.WriteString(ge.Error())
+		builder.WriteByte('\n')
 	}
 
 	for _, ge := range e.groupErrors {
-		builder.WriteString(ge.Error() + "\n")
+		builder.WriteString(ge.Error())
+		builder.WriteByte('\n')
 	}
 
 	return strings.TrimSpace(builder.String())

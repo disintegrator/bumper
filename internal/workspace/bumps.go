@@ -171,7 +171,7 @@ func DeleteBumps(ctx context.Context, dir string) error {
 func extractFrontMatter(content string, dst any) (string, error) {
 	state := "initial"
 	fm := ""
-	rest := ""
+	var rest strings.Builder
 	for line := range strings.Lines(content) {
 		switch {
 		case state == "initial":
@@ -184,7 +184,7 @@ func extractFrontMatter(content string, dst any) (string, error) {
 		case state == "frontmatter":
 			fm += line
 		case state == "slurping":
-			rest += line
+			rest.WriteString(line)
 		default:
 			return "", errors.New("invalid front matter parse state")
 		}
@@ -199,7 +199,7 @@ func extractFrontMatter(content string, dst any) (string, error) {
 		return "", fmt.Errorf("parse frontmatter yaml: %w", err)
 	}
 
-	return strings.TrimSpace(rest), nil
+	return strings.TrimSpace(rest.String()), nil
 }
 
 func GetCurrentVersion(ctx context.Context, dir string, group ReleaseGroup) (*semver.Version, error) {

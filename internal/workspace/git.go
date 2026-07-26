@@ -31,7 +31,7 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 		return nil, fmt.Errorf("get worktree: %w", err)
 	}
 
-	gitRoot := worktree.Filesystem.Root()
+	gitRoot := worktree.Filesystem().Root()
 
 	unresolved := []string{}
 	for range 10 {
