@@ -5,9 +5,13 @@
   "workspaces": [
     "site"
   ],
+  "scripts": {
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
   "devDependencies": {
     "@types/bun": "latest",
-    "prettier": "^3.9.6"
+    "oxfmt": "^0.60.0"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"

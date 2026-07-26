@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "sortPackageJson": false,
+  "sortTailwindcss": {
+    "stylesheet": "site/src/styles/global.css"
+  },
+  "ignorePatterns": ["*.yaml", "*.yml", ".next", "node_modules"]
+}
