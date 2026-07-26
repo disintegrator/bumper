@@ -45,3 +45,13 @@ site/                    Docs site (Astro + Starlight + Tailwind), deployed to
 .mise-tasks/             mise file tasks (build/run, release notes, CLI-reference gen)
 .github/workflows/       release-pr, release (goreleaser + cosign), docs deploy
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues (`disintegrator/bumper`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` at the repo root plus `docs/adr/`. See `docs/agents/domain.md`.
