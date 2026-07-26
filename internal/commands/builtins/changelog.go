@@ -50,21 +50,14 @@ func newDefaultAmendChangelogCommand(logger *slog.Logger) *cli.Command {
 			major := c.StringSlice("major")
 			minor := c.StringSlice("minor")
 			patch := c.StringSlice("patch")
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
+			dir := res.Dir
 
 			displayName := groupName
-			groups := cfg.IndexReleaseGroups()
-			group, ok := groups[groupName]
+			group, ok := res.Config.IndexReleaseGroups()[groupName]
 			if ok {
 				if group.DisplayName != "" {
 					displayName = group.DisplayName
@@ -216,22 +209,14 @@ func newDefaultCatChangelogCommand(logger *slog.Logger) *cli.Command {
 			logfile := c.String("path")
 			groupName := releaseGroup(c)
 			versionStr := version(c)
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
 
-			group, ok := cfg.IndexReleaseGroups()[groupName]
-			if !ok {
-				logger.ErrorContext(ctx, "release group not found", slog.String("group", groupName))
-				return cmd.Failed(err)
+			group, err := res.Group(ctx, logger, groupName)
+			if err != nil {
+				return err
 			}
 
 			result, err := changelogForGroup(group, logfile, versionStr)

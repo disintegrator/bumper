@@ -18,7 +18,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 		Name:  "init",
 		Usage: "Initialize a new project",
 		Flags: []cli.Flag{
-			shared.NewDirFlag(),
+			dirFlag,
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			dir := shared.DirFlag(c)

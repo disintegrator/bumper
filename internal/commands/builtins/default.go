@@ -24,18 +24,16 @@ func newDefaultCurrentCommand(logger *slog.Logger) *cli.Command {
 			releaseGroupFlag,
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
+				return err
 			}
 
 			var versions struct {
 				Values map[string]string `toml:"versions,omitempty,omitzero"`
 			}
 
-			versionFile := workspace.VersionFilename(dir)
+			versionFile := workspace.VersionFilename(res.Dir)
 			_, err = toml.DecodeFile(versionFile, &versions)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				logger.ErrorContext(ctx, "failed to read versions file", slog.String("file", versionFile), slog.String("error", err.Error()))
@@ -70,18 +68,16 @@ func newDefaultNextCommand(logger *slog.Logger) *cli.Command {
 			nextVersionFlag,
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to initialize project", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
+				return err
 			}
 
 			var versions struct {
 				Values map[string]string `toml:"versions,omitempty,omitzero"`
 			}
 
-			versionFile := workspace.VersionFilename(dir)
+			versionFile := workspace.VersionFilename(res.Dir)
 			_, err = toml.DecodeFile(versionFile, &versions)
 			if err != nil && !errors.Is(err, os.ErrNotExist) {
 				logger.ErrorContext(ctx, "failed to read versions file", slog.String("file", versionFile), slog.String("error", err.Error()))

@@ -23,21 +23,15 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			shared.NewDirFlag(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
+			dir := res.Dir
 
-			cfgGroups := cfg.IndexReleaseGroups()
+			cfgGroups := res.Config.IndexReleaseGroups()
 
-			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg, workspace.NewGitProvenance(logger, dir))
+			statuses, err := workspace.CollectBumps(ctx, logger, dir, res.Config, workspace.NewGitProvenance(logger, dir))
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
