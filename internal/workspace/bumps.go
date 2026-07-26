@@ -31,16 +31,8 @@ type ReleaseGroupStatus struct {
 	PatchLogs []LogEntry
 }
 
-func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config) (map[string]*ReleaseGroupStatus, error) {
+func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Config, provenance Provenance) (map[string]*ReleaseGroupStatus, error) {
 	statuses := make(map[string]*ReleaseGroupStatus)
-
-	repo, err := openGitRepository(dir)
-	switch {
-	case errors.Is(err, errNoGitRepository):
-		logger.WarnContext(ctx, "git repository not found", slog.String("dir", dir))
-	case err != nil:
-		logger.WarnContext(ctx, "failed to open git repository", slog.String("dir", dir), slog.String("error", err.Error()))
-	}
 
 	highestBump := make(map[string]BumpLevel)
 	for _, g := range cfg.Groups {
@@ -57,7 +49,7 @@ func CollectBumps(ctx context.Context, logger *slog.Logger, dir string, cfg *Con
 		return statuses, nil
 	}
 
-	gitInfo, err := ResolveGitInfoForBumps(ctx, logger, repo, matches)
+	gitInfo, err := provenance.Resolve(ctx, matches)
 	if err != nil {
 		return nil, fmt.Errorf("resolve git info for bumps: %w", err)
 	}
