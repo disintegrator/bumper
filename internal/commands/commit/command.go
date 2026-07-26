@@ -37,7 +37,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 
 			cfgGroups := cfg.IndexReleaseGroups()
 
-			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg)
+			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg, workspace.NewGitProvenance(logger, dir))
 			if err != nil {
 				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)

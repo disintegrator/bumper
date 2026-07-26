@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
+	"slices"
 
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
@@ -20,11 +20,32 @@ var (
 	errNoGitRepository = errors.New("no git repository found")
 )
 
-func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.Repository, bumpFiles []string) (map[string]*vcsCommit, error) {
-	info := make(map[string]*vcsCommit, len(bumpFiles))
+// GitProvenance resolves bump-file provenance from the git repository
+// containing Dir, deepening shallow clones as needed. A directory outside any
+// git repository degrades to empty results with a warning.
+type GitProvenance struct {
+	Logger *slog.Logger
+	Dir    string
+}
 
-	pending := make([]string, len(bumpFiles))
-	copy(pending, bumpFiles)
+func NewGitProvenance(logger *slog.Logger, dir string) *GitProvenance {
+	return &GitProvenance{Logger: logger, Dir: dir}
+}
+
+var _ Provenance = (*GitProvenance)(nil)
+
+func (g *GitProvenance) Resolve(ctx context.Context, bumpFiles []string) (map[string]Commit, error) {
+	info := make(map[string]Commit, len(bumpFiles))
+
+	repo, err := openGitRepository(g.Dir)
+	switch {
+	case errors.Is(err, errNoGitRepository):
+		g.Logger.WarnContext(ctx, "git repository not found", slog.String("dir", g.Dir))
+		return info, nil
+	case err != nil:
+		g.Logger.WarnContext(ctx, "failed to open git repository", slog.String("dir", g.Dir), slog.String("error", err.Error()))
+		return info, nil
+	}
 
 	worktree, err := repo.Worktree()
 	if err != nil {
@@ -33,9 +54,9 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 
 	gitRoot := worktree.Filesystem().Root()
 
-	unresolved := []string{}
+	pending := slices.Clone(bumpFiles)
 	for range 10 {
-		unresolved = make([]string, 0, len(pending))
+		unresolved := make([]string, 0, len(pending))
 		for _, f := range pending {
 			relPath, err := filepath.Rel(gitRoot, f)
 			if err != nil {
@@ -50,14 +71,15 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 			if commit == nil {
 				unresolved = append(unresolved, f)
 			} else {
-				info[f] = &vcsCommit{
+				info[f] = Commit{
 					SHA:  commit.Hash.String(),
 					When: commit.Committer.When,
 				}
 			}
 		}
 
-		if len(unresolved) == 0 {
+		pending = unresolved
+		if len(pending) == 0 {
 			break
 		}
 
@@ -66,19 +88,18 @@ func ResolveGitInfoForBumps(ctx context.Context, logger *slog.Logger, repo *git.
 			return nil, fmt.Errorf("check if repo is shallow: %w", err)
 		}
 
-		if isShallow {
-			repo, err = deepenShallowRepo(ctx, gitRoot, 50)
-			if err != nil {
-				return nil, fmt.Errorf("deepen shallow repo: %w", err)
-			}
-		} else {
+		if !isShallow {
 			break
+		}
+
+		repo, err = deepenShallowRepo(ctx, gitRoot, 50)
+		if err != nil {
+			return nil, fmt.Errorf("deepen shallow repo: %w", err)
 		}
 	}
 
-	for _, f := range unresolved {
-		logger.WarnContext(ctx, "could not resolve git info for bump file", slog.String("file", f))
-		delete(info, f)
+	for _, f := range pending {
+		g.Logger.WarnContext(ctx, "could not resolve git info for bump file", slog.String("file", f))
 	}
 
 	return info, nil
@@ -122,11 +143,6 @@ func openGitRepository(dir string) (*git.Repository, error) {
 	return repo, nil
 }
 
-type vcsCommit struct {
-	SHA  string
-	When time.Time
-}
-
 func getInitialCommitForFile(repo *git.Repository, gitFilename string) (*object.Commit, error) {
 	ref, err := repo.Head()
 	if err != nil {
@@ -154,10 +170,13 @@ func getInitialCommitForFile(repo *git.Repository, gitFilename string) (*object.
 		p, err := c.Parent(0)
 		switch {
 		case errors.Is(err, plumbing.ErrObjectNotFound):
+			// Parent is beyond a shallow-clone boundary - can't tell whether
+			// the file was added here, so leave it unresolved for deepening.
 			return nil
 		case errors.Is(err, object.ErrParentNotFound):
 			// No parent (root commit) - this is where file was added
 			commit = c
+			return storer.ErrStop
 		case err != nil:
 			return fmt.Errorf("get commit parent: %w", err)
 		}
