@@ -144,6 +144,96 @@ func TestRunSuccessDeletesBumpFiles(t *testing.T) {
 	}
 }
 
+// callsForGroup returns the invocations addressed to a group.
+func callsForGroup(runner *scriptedRunner, group string) []workspace.GroupInvocation {
+	var calls []workspace.GroupInvocation
+	for _, inv := range runner.calls {
+		if slices.Contains(inv.Env, "BUMPER_GROUP="+group) {
+			calls = append(calls, inv)
+		}
+	}
+	return calls
+}
+
+// A retry after a partial failure skips groups whose commands already
+// succeeded: each group is released exactly once across both invocations.
+func TestRunRetrySkipsAlreadyReleasedGroups(t *testing.T) {
+	dir := setupPendingBumps(t, "a", "b", "c")
+	cfg := &workspace.Config{Groups: []workspace.ReleaseGroup{
+		testGroup("a"), testGroup("b"), testGroup("c"),
+	}}
+	logger := slog.New(slog.DiscardHandler)
+
+	first := &scriptedRunner{failGroup: "b"}
+	if err := run(t.Context(), logger, first, &workspace.FakeProvenance{}, dir, cfg, io.Discard); err == nil {
+		t.Fatal("expected first attempt to fail")
+	}
+	if len(callsForGroup(first, "a")) == 0 {
+		t.Fatal("expected group a to be released in the first attempt")
+	}
+
+	second := &scriptedRunner{}
+	var stdout bytes.Buffer
+	if err := run(t.Context(), logger, second, &workspace.FakeProvenance{}, dir, cfg, &stdout); err != nil {
+		t.Fatalf("unexpected error on retry: %v", err)
+	}
+
+	if calls := callsForGroup(second, "a"); len(calls) != 0 {
+		t.Errorf("group a ran %d commands on retry, want 0 (already released): %v", len(calls), calls)
+	}
+	if calls := callsForGroup(second, "b"); len(calls) == 0 {
+		t.Error("expected group b to be released on retry")
+	}
+	if calls := callsForGroup(second, "c"); len(calls) == 0 {
+		t.Error("expected group c to be released on retry")
+	}
+
+	// The retry still reports the whole batch, including the skipped group.
+	if got, want := stdout.String(), "a\nb\nc\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+
+	if got := pendingBumpFiles(t, dir); len(got) != 0 {
+		t.Errorf("bump files remaining = %v, want none after the batch completes", got)
+	}
+	if _, err := os.Stat(workspace.CommitCheckpointFilename(dir)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("checkpoint stat = %v, want it removed after the batch completes", err)
+	}
+}
+
+// Changing the pending bumps between the failure and the retry is a new
+// batch: the stale checkpoint is discarded and every group runs again.
+func TestRunBatchChangeRestartsFromScratch(t *testing.T) {
+	dir := setupPendingBumps(t, "a", "b")
+	cfg := &workspace.Config{Groups: []workspace.ReleaseGroup{
+		testGroup("a"), testGroup("b"),
+	}}
+	logger := slog.New(slog.DiscardHandler)
+
+	first := &scriptedRunner{failGroup: "b"}
+	if err := run(t.Context(), logger, first, &workspace.FakeProvenance{}, dir, cfg, io.Discard); err == nil {
+		t.Fatal("expected first attempt to fail")
+	}
+
+	// The batch changes: a new bump lands for group a before the retry.
+	content := "---\na: major\n---\n\nbreaking change for a\n"
+	if err := os.WriteFile(workspace.BumpFilename(dir, "a-major"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write bump file: %v", err)
+	}
+
+	second := &scriptedRunner{}
+	if err := run(t.Context(), logger, second, &workspace.FakeProvenance{}, dir, cfg, io.Discard); err != nil {
+		t.Fatalf("unexpected error on retry: %v", err)
+	}
+
+	if calls := callsForGroup(second, "a"); len(calls) == 0 {
+		t.Error("expected group a to run again: the modified batch discards the checkpoint")
+	}
+	if got := pendingBumpFiles(t, dir); len(got) != 0 {
+		t.Errorf("bump files remaining = %v, want none", got)
+	}
+}
+
 // Bump files that carry no release intent (e.g. from bump --empty) are still
 // cleaned up when there is nothing to release.
 func TestRunNoEffectiveBumpsStillCleansUp(t *testing.T) {

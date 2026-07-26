@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -58,13 +59,23 @@ func run(
 		logger.InfoContext(ctx, "no pending version bumps found", slog.String("dir", dir))
 
 		// Nothing to release, so bump files present here carry no release
-		// intent (empty or unknown-group ones) and are safe to clean up.
+		// intent (empty or unknown-group ones) and are safe to clean up,
+		// along with any checkpoint from an abandoned batch.
 		if err := workspace.DeleteBumps(ctx, dir); err != nil {
 			logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
 			return cmd.Failed(err)
 		}
+		if err := workspace.DeleteCommitCheckpoint(dir); err != nil {
+			logger.ErrorContext(ctx, "failed to delete commit checkpoint", slog.String("dir", dir), slog.String("error", err.Error()))
+			return cmd.Failed(err)
+		}
 
 		return nil
+	}
+
+	checkpoint, err := loadCheckpointForBatch(ctx, logger, dir)
+	if err != nil {
+		return cmd.Failed(err)
 	}
 
 	entries := lo.Entries(statuses)
@@ -86,6 +97,12 @@ func run(
 			continue
 		}
 
+		if version, released := checkpoint.Released[groupName]; released {
+			logger.InfoContext(ctx, "skipping group released by a previous attempt at this batch", slog.String("group", groupName), slog.String("version", version))
+			committedGroups = append(committedGroups, groupName)
+			continue
+		}
+
 		nextVersion, err := workspace.GetNextVersion(ctx, runner, dir, g, status.Level)
 		if err != nil {
 			logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
@@ -104,6 +121,14 @@ func run(
 			return cmd.Failed(fmt.Errorf("release group %s: %w", groupName, err))
 		}
 
+		// Record the group as released before moving on, so a failure in a
+		// later group never re-releases this one on retry.
+		checkpoint.Released[groupName] = nextVersion
+		if err := workspace.SaveCommitCheckpoint(dir, checkpoint); err != nil {
+			logger.ErrorContext(ctx, "failed to save commit checkpoint", slog.String("dir", dir), slog.String("error", err.Error()))
+			return cmd.Failed(err)
+		}
+
 		committedGroups = append(committedGroups, groupName)
 	}
 
@@ -112,10 +137,46 @@ func run(
 		logger.ErrorContext(ctx, "failed to delete bump files", slog.String("dir", dir), slog.String("error", err.Error()))
 		return cmd.Failed(err)
 	}
+	if err := workspace.DeleteCommitCheckpoint(dir); err != nil {
+		logger.ErrorContext(ctx, "failed to delete commit checkpoint", slog.String("dir", dir), slog.String("error", err.Error()))
+		return cmd.Failed(err)
+	}
 
 	fmt.Fprintln(stdout, strings.Join(committedGroups, "\n"))
 
 	return nil
+}
+
+// loadCheckpointForBatch returns the checkpoint from a previously failed
+// attempt at the current batch of pending bumps, or a fresh one. A checkpoint
+// recorded for a different batch (the bump files changed since the failure)
+// is discarded: the modified batch is released from scratch.
+func loadCheckpointForBatch(ctx context.Context, logger *slog.Logger, dir string) (*workspace.CommitCheckpoint, error) {
+	fingerprint, err := workspace.BumpBatchFingerprint(dir)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to fingerprint pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
+		return nil, err
+	}
+
+	checkpoint, err := workspace.LoadCommitCheckpoint(dir)
+	if err != nil {
+		logger.ErrorContext(ctx, "failed to load commit checkpoint", slog.String("dir", dir), slog.String("error", err.Error()))
+		return nil, err
+	}
+
+	if checkpoint != nil && !maps.Equal(checkpoint.Batch, fingerprint) {
+		logger.WarnContext(ctx, "pending bumps changed since the failed commit attempt; releasing the batch from scratch", slog.String("dir", dir))
+		checkpoint = nil
+	}
+
+	if checkpoint == nil {
+		checkpoint = &workspace.CommitCheckpoint{
+			Batch:    fingerprint,
+			Released: map[string]string{},
+		}
+	}
+
+	return checkpoint, nil
 }
 
 func commitVersionBump(ctx context.Context, runner workspace.Runner, dir string, group workspace.ReleaseGroup, versionStr string) error {
