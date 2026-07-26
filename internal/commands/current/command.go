@@ -2,7 +2,6 @@ package current
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -25,39 +24,19 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
 
-			if len(cfg.Groups) == 0 {
-				err := errors.New("no release groups defined in configuration")
-				logger.ErrorContext(ctx, err.Error(), slog.String("hint", "use `bumper create` to create one"))
-				return cmd.Failed(err)
-			}
-
-			groupName, err := shared.GroupFlagOrDefault(ctx, logger, c, cfg)
+			group, err := res.Group(ctx, logger, c.String("group"))
 			if err != nil {
 				return err
 			}
 
-			cfgGroups := cfg.IndexReleaseGroups()
-			group, ok := cfgGroups[groupName]
-			if !ok {
-				logger.ErrorContext(ctx, "release group not found", slog.String("group", groupName))
-				return cmd.Failed(err)
-			}
-
-			currentVersion, err := workspace.GetCurrentVersion(ctx, workspace.ExecRunner{}, dir, group)
+			currentVersion, err := workspace.GetCurrentVersion(ctx, workspace.ExecRunner{}, res.Dir, group)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to get current version", slog.String("group", groupName), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to get current version", slog.String("group", group.Name), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 

@@ -59,17 +59,11 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
+			dir, cfg := res.Dir, res.Config
 
 			if c.Bool("empty") {
 				filename := workspace.BumpFilename(dir, random.GetRandomName())

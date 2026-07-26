@@ -2,7 +2,6 @@ package next
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -25,51 +24,31 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
 
-			if len(cfg.Groups) == 0 {
-				err := errors.New("no release groups defined in configuration")
-				logger.ErrorContext(ctx, err.Error(), slog.String("hint", "use `bumper create` to create one"))
-				return cmd.Failed(err)
-			}
-
-			groupName, err := shared.GroupFlagOrDefault(ctx, logger, c, cfg)
+			group, err := res.Group(ctx, logger, c.String("group"))
 			if err != nil {
 				return err
 			}
 
-			cfgGroups := cfg.IndexReleaseGroups()
-			group, ok := cfgGroups[groupName]
-			if !ok {
-				logger.ErrorContext(ctx, "release group not found", slog.String("group", groupName))
-				return cmd.Failed(err)
-			}
-
-			statuses, err := workspace.CollectBumps(ctx, logger, dir, cfg, workspace.NewGitProvenance(logger, dir))
+			statuses, err := workspace.CollectBumps(ctx, logger, res.Dir, res.Config, workspace.NewGitProvenance(logger, res.Dir))
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", dir), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to collect pending bumps", slog.String("dir", res.Dir), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 
-			status, ok := statuses[groupName]
+			status, ok := statuses[group.Name]
 			if !ok {
-				logger.InfoContext(ctx, "no pending version bump found for group", slog.String("group", groupName))
+				logger.InfoContext(ctx, "no pending version bump found for group", slog.String("group", group.Name))
 				return nil
 			}
 
-			nextVersion, err := workspace.GetNextVersion(ctx, workspace.ExecRunner{}, dir, group, status.Level)
+			nextVersion, err := workspace.GetNextVersion(ctx, workspace.ExecRunner{}, res.Dir, group, status.Level)
 			if err != nil {
-				logger.ErrorContext(ctx, "failed to get next version", slog.String("group", groupName), slog.String("error", err.Error()))
+				logger.ErrorContext(ctx, "failed to get next version", slog.String("group", group.Name), slog.String("error", err.Error()))
 				return cmd.Failed(err)
 			}
 

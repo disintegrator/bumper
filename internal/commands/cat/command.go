@@ -2,7 +2,6 @@ package cat
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"os"
 	"strings"
@@ -32,44 +31,24 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
 
-			if len(cfg.Groups) == 0 {
-				err := errors.New("no release groups defined in configuration")
-				logger.ErrorContext(ctx, err.Error(), slog.String("hint", "use `bumper create` to create one"))
-				return cmd.Failed(err)
-			}
-
-			groupName, err := shared.GroupFlagOrDefault(ctx, logger, c, cfg)
+			group, err := res.Group(ctx, logger, c.String("group"))
 			if err != nil {
 				return err
-			}
-
-			cfgGroups := cfg.IndexReleaseGroups()
-			group, ok := cfgGroups[groupName]
-			if !ok {
-				logger.ErrorContext(ctx, "release group not found", slog.String("group", groupName))
-				return cmd.Failed(err)
 			}
 
 			inv, err := workspace.NewCatInvocation(group, c.String("version"))
 			if err != nil {
-				logger.ErrorContext(ctx, "no cat command defined for group", slog.String("group", groupName))
+				logger.ErrorContext(ctx, "no cat command defined for group", slog.String("group", group.Name))
 				return cmd.Failed(err)
 			}
 
 			runner := workspace.ExecRunner{}
-			if err := runner.Run(ctx, dir, inv, os.Stdout); err != nil {
+			if err := runner.Run(ctx, res.Dir, inv, os.Stdout); err != nil {
 				logger.ErrorContext(ctx, "failed to execute cat command", slog.String("error", err.Error()), slog.String("command", strings.Join(group.CatCMD, " ")))
 				return cmd.Failed(err)
 			}

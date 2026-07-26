@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/disintegrator/bumper/internal/cmd"
 	"github.com/disintegrator/bumper/internal/commands/shared"
 	"github.com/disintegrator/bumper/internal/workspace"
 	"github.com/urfave/cli/v3"
@@ -27,17 +26,11 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			shared.NewDirFlag(),
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			rawdir := shared.DirFlag(c)
-			dir, err := workspace.GetWd(rawdir)
-			if err != nil {
-				logger.ErrorContext(ctx, "workspace directory not found", slog.String("dir", rawdir), slog.String("error", err.Error()))
-				return cmd.Failed(err)
-			}
-
-			cfg, err := shared.LoadConfig(ctx, logger, dir)
+			res, err := shared.Resolve(ctx, logger, shared.DirFlag(c))
 			if err != nil {
 				return err
 			}
+			cfg := res.Config
 
 			names := c.StringArgs("groups")
 			groups := make([]workspace.ReleaseGroup, 0, len(names))
@@ -70,7 +63,7 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 				return strings.Compare(a.Name, b.Name)
 			})
 
-			if err := shared.SaveConfig(ctx, logger, dir, cfg); err != nil {
+			if err := shared.SaveConfig(ctx, logger, res.Dir, cfg); err != nil {
 				return err
 			}
 
