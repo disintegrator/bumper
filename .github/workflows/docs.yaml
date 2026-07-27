@@ -45,7 +45,7 @@ jobs:
         run: mise run site:cli-reference
 
       - name: Install, build, and upload your site
-        uses: withastro/action@15aa0a5a1e067940253e3b259413ab2ae882a740 # v5.2.0
+        uses: withastro/action@e84f40bd8d2caa9e768ec82ad30dd81f0b280853 # v6.1.2
         with:
           path: site
           package-manager: bun
