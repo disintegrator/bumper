@@ -5,6 +5,8 @@ sidebar:
   label: GitHub Actions + GoReleaser
 ---
 
+import { Aside } from "@astrojs/starlight/components";
+
 This guide will show you how to direct goreleaser to use the versions and release notes from Bumper.
 
 ```yaml title=".github/workflows/release.yml"
@@ -57,5 +59,29 @@ jobs:
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: "~> v2"
-          args: release --clean
+          args: release --clean --release-notes=${{ env.RELEASE_NOTES_FILE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+## Keep the changelog pipe enabled
+
+GoReleaser loads the `--release-notes` file in its changelog pipe. Keep that
+pipe enabled in `.goreleaser.yaml`:
+
+```yaml title=".goreleaser.yaml"
+# Release notes come from Bumper (--release-notes in the workflow), which
+# replaces git-log changelog generation.
+changelog:
+  disable: false
+```
+
+<Aside type="caution">
+
+Do not set `changelog.disable: true` to suppress GoReleaser's commit-log
+changelog. Disabling the changelog skips the entire pipe — including loading
+the `--release-notes` file — so your GitHub releases publish with an empty
+body and no error. Passing `--release-notes` already replaces the git-log
+changelog, so there is nothing left to disable.
+
+</Aside>
