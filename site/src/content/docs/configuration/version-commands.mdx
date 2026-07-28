@@ -121,6 +121,34 @@ Then running bumper commit will update package.json file with the next version. 
 }
 ```
 
+### `bumper builtins next:toml`, `next:json`, `next:yaml`
+
+These next commands update a version string at a given key path inside a TOML, JSON or YAML file. They are useful for manifests like `pyproject.toml`, `Cargo.toml`, `composer.json` or `galaxy.yml` where the version lives at a well-known key. Pass the file with `--path` (repeatable to update several files) and the dot-separated key path with `--key`. For example, if you have this bumper config:
+
+```toml {7}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:toml", "--path", "pyproject.toml", "--key", "tool.poetry.version"]
+next_cmd = ["bumper", "builtins", "next:toml", "--path", "pyproject.toml", "--key", "tool.poetry.version"]
+```
+
+Then running bumper commit will update the version in place, preserving the formatting and comments in the rest of the file:
+
+```diff lang=toml
+[tool.poetry]
+name = "my-package"
+- version = "1.2.3"
++ version = "1.2.4"
+description = "..."
+```
+
+The same applies to `next:json` (e.g. `--path composer.json --key version`) and `next:yaml` (e.g. `--path galaxy.yml --key version`). File paths are relative to the workspace root (the directory that holds the `.bumper` directory).
+
+The file and the key path must already exist — these commands will not create them. Key paths do not support escaping, so keys that themselves contain dots cannot be addressed.
+
 ### `bumper builtins current:default`
 
 This current command reads the current version of a release group from a `versions.toml` file in the `.bumper` directory.
@@ -184,6 +212,30 @@ And a `package.json` file containing:
 ```
 
 Then running `bumper current --group my-package` will output `1.2.3`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
+
+### `bumper builtins current:toml`, `current:json`, `current:yaml`
+
+These current commands read a version string from a given key path inside a TOML, JSON or YAML file. Pass the file with `--path` and the dot-separated key path with `--key`. For example, if you have this bumper config:
+
+```toml {6}
+[[groups]]
+name = "my-package"
+display_name = "my-package"
+changelog_cmd = ["bumper", "builtins", "amendlog:default"]
+cat_cmd = ["bumper", "builtins", "cat:default"]
+current_cmd = ["bumper", "builtins", "current:toml", "--path", "pyproject.toml", "--key", "tool.poetry.version"]
+next_cmd = ["bumper", "builtins", "next:toml", "--path", "pyproject.toml", "--key", "tool.poetry.version"]
+```
+
+And a `pyproject.toml` file containing:
+
+```toml
+[tool.poetry]
+name = "my-package"
+version = "1.2.3"
+```
+
+Then running `bumper current --group my-package` will output `1.2.3`. The same applies to `current:json` and `current:yaml`. The file path is relative to the workspace root (the directory that holds the `.bumper` directory).
 
 ## Custom commands
 

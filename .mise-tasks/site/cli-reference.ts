@@ -16,9 +16,15 @@ async function generateCLIReferenceDocs() {
     ["builtins", "current:default"],
     ["builtins", "current:file"],
     ["builtins", "current:npm"],
+    ["builtins", "current:toml"],
+    ["builtins", "current:json"],
+    ["builtins", "current:yaml"],
     ["builtins", "next:default"],
     ["builtins", "next:file"],
     ["builtins", "next:npm"],
+    ["builtins", "next:toml"],
+    ["builtins", "next:json"],
+    ["builtins", "next:yaml"],
     ["builtins", "amendlog:default"],
     ["builtins", "cat:default"],
   ];
@@ -27,7 +33,7 @@ async function generateCLIReferenceDocs() {
   await mkdir("./site/src/content/docs/cli", { recursive: true });
 
   for (const command of commands) {
-    const helpText = await Bun.$`mise run bumper ${command} --help`.text();
+    const helpText = await Bun.$`mise run bumper -- ${command} --help`.text();
     const title = command.join(" ");
 
     const docContent = `---
