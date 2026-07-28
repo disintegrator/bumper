@@ -7,9 +7,11 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/log v1.0.0
+	github.com/creachadair/tomledit v0.0.29
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
 	github.com/goccy/go-yaml v1.19.2
 	github.com/samber/lo v1.53.0
+	github.com/tidwall/gjson v1.14.2
 	github.com/tidwall/sjson v1.2.5
 	github.com/urfave/cli/v3 v3.10.1
 )
@@ -48,7 +50,6 @@ require (
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
-	github.com/tidwall/gjson v1.14.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

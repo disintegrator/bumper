@@ -15,10 +15,16 @@ func NewCommand(logger *slog.Logger) *cli.Command {
 			newDefaultCurrentCommand(logger),
 			newFileCurrentCommand(logger),
 			newNPMCurrentCommand(logger),
+			newTOMLCurrentCommand(logger),
+			newJSONCurrentCommand(logger),
+			newYAMLCurrentCommand(logger),
 
 			newDefaultNextCommand(logger),
 			newFileNextCommand(logger),
 			newNPMNextCommand(logger),
+			newTOMLNextCommand(logger),
+			newJSONNextCommand(logger),
+			newYAMLNextCommand(logger),
 
 			newDefaultAmendChangelogCommand(logger),
 			newDefaultCatChangelogCommand(logger),
