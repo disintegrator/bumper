@@ -31,15 +31,14 @@ You can find pre-built packages for various Linux distributions on the [Releases
 
 All release artifacts are signed using [cosign](https://github.com/sigstore/cosign) with keyless signing. You can verify the authenticity of the downloaded binaries by checking the signature against the checksums file.
 
-First, download the checksums file and its signature:
+First, download the checksums file and its signature bundle:
 
 <Code
   code={`
 VERSION=${__VERSION__}
 BASE_URL="https://github.com/disintegrator/bumper/releases/download/v$VERSION"
 curl -fsSLO "$BASE_URL/checksums.txt"
-curl -fsSLO "$BASE_URL/checksums.txt.pem"
-curl -fsSLO "$BASE_URL/checksums.txt.keyless.sig"
+curl -fsSLO "$BASE_URL/checksums.txt.sigstore.json"
 curl -fsSLO "$BASE_URL/bumper_$VERSION_darwin_arm64.tar.gz"
 `.trim()}
   lang="sh"
@@ -49,8 +48,7 @@ Verify the checksums file with cosign:
 
 ```sh
 cosign verify-blob checksums.txt \
-  --certificate checksums.txt.pem \
-  --signature checksums.txt.keyless.sig \
+  --bundle checksums.txt.sigstore.json \
   --certificate-identity 'https://github.com/disintegrator/bumper/.github/workflows/release.yaml@refs/heads/main' \
   --certificate-oidc-issuer 'https://token.actions.githubusercontent.com'
 ```
