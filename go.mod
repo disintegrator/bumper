@@ -11,7 +11,7 @@ require (
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4
 	github.com/goccy/go-yaml v1.19.2
 	github.com/samber/lo v1.53.0
-	github.com/tidwall/gjson v1.14.2
+	github.com/tidwall/gjson v1.19.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/urfave/cli/v3 v3.10.1
 )
