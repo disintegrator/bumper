@@ -13,7 +13,7 @@ require (
 	github.com/samber/lo v1.53.0
 	github.com/tidwall/gjson v1.14.2
 	github.com/tidwall/sjson v1.2.5
-	github.com/urfave/cli/v3 v3.10.1
+	github.com/urfave/cli/v3 v3.12.0
 )
 
 require (
